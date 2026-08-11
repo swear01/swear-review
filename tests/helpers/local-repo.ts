@@ -70,14 +70,15 @@ export function createLocalRepo(opts?: { featureFile?: string }): LocalRepo {
 
 /** Creates an additional commit on the feature branch and pushes it. */
 export function addCommit(repo: LocalRepo, content?: string): string {
+  const n = Date.now();
   const extra = content ?? `
-export function extraFunction(): number {
-  return 42;
+export function extraFunction${n}(): number {
+  return ${n};
 }`;
-  const p = path.join(repo.dir, 'src/extra.ts');
+  const p = path.join(repo.dir, `src/extra-${n}.ts`);
   writeFileSync(p, extra);
   git(['add', '.'], repo.dir);
-  git(['commit', '-qm', 'feature2'], repo.dir);
+  git(['commit', '-qm', `feature2-${n}`], repo.dir);
   const sha = git(['rev-parse', 'HEAD'], repo.dir).trim();
   git(['push', '-q', 'origin', 'feature'], repo.dir);
   return sha;

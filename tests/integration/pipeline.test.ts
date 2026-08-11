@@ -380,4 +380,112 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       harness.cleanup();
     }
   });
+
+  it('Test D: /swear-review full from an admin enqueues a full review', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    github.permission = 'admin';
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-cmd'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('issue_comment', {
+        action: 'created',
+        issue: { number: 9, pull_request: {} },
+        comment: { user: { login: 'admin-user' }, body: '/swear-review full' },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 9)?.status === 'completed', 30_000);
+      const job = harness.db.getLatestJob('test-owner', 'demo', 9)!;
+      expect(job.trigger).toBe('manual');
+      expect(job.mode).toBe('full');
+      // ack comment posted
+      expect(github.callsTo('issues.createComment').some((c) => String(c.params.body).includes('full review queued'))).toBe(true);
+    } finally {
+      harness.cleanup();
+    }
+  });
+
+  it('Test E: /swear-review incremental reviews only the new commits (fallback to full without prior review)', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    github.permission = 'write';
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-incr'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      // no prior successful review → falls back to full and says so
+      await harness.scheduler.handleEvent('issue_comment', {
+        action: 'created',
+        issue: { number: 10, pull_request: {} },
+        comment: { user: { login: 'dev' }, body: '/swear-review incremental' },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 10) !== null, 10_000);
+      const job = harness.db.getLatestJob('test-owner', 'demo', 10)!;
+      expect(job.mode).toBe('full');
+      expect(job.trigger).toBe('manual-incremental-fallback');
+      expect(github.callsTo('issues.createComment').some((c) => String(c.params.body).includes('falling back to full'))).toBe(true);
+
+      // simulate a prior successful review, then incremental uses last SHA → HEAD
+      harness.db.setPullRequestReviewed('test-owner', 'demo', 10, repo.headSha, 'full', true);
+      const newHead = addCommit(repo);
+      github.prHeadSha = newHead;
+      await harness.scheduler.handleEvent('issue_comment', {
+        action: 'created',
+        issue: { number: 10, pull_request: {} },
+        comment: { user: { login: 'dev' }, body: '/swear-review incremental' },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      await waitFor(() => {
+        const j = harness.db.getLatestJob('test-owner', 'demo', 10);
+        return j?.trigger === 'manual-incremental' && j.status === 'completed';
+      }, 30_000);
+      const incr = harness.db.getLatestJob('test-owner', 'demo', 10)!;
+      expect(incr.mode).toBe('incremental');
+      expect(incr.base_sha).toBe(repo.headSha); // last successfully reviewed SHA
+      expect(incr.head_sha).toBe(newHead);
+      const run = harness.db.getRun(incr.review_run_id!)!;
+      expect(run.status).toBe('completed');
+    } finally {
+      harness.cleanup();
+    }
+  });
+
+  it('Test L: /swear-review from a read-only user is denied without enqueueing', async () => {
+    const github = new FakeGitHubApi();
+    github.permission = 'read';
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-denied'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('issue_comment', {
+        action: 'created',
+        issue: { number: 11, pull_request: {} },
+        comment: { user: { login: 'stranger' }, body: '/swear-review' },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: false, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      await new Promise((r) => setTimeout(r, 500));
+      expect(harness.db.getLatestJob('test-owner', 'demo', 11)).toBeNull();
+      // denial reply posted
+      expect(github.callsTo('issues.createComment').some((c) => String(c.params.body).includes('do not have permission'))).toBe(true);
+    } finally {
+      harness.cleanup();
+    }
+  });
 });

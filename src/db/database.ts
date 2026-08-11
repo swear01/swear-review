@@ -122,11 +122,16 @@ export class Database {
     const lastFull = mode === 'full' ? headSha : (row?.last_full_review_sha ?? null);
     this.db
       .prepare(
-        `UPDATE pull_requests SET
-           last_reviewed_sha = ?, last_successful_review_sha = ?, last_full_review_sha = ?, updated_at = ?
-         WHERE repo_owner = ? AND repo_name = ? AND pr_number = ?`
+        `INSERT INTO pull_requests (repo_owner, repo_name, pr_number, head_sha, last_reviewed_sha, last_successful_review_sha, last_full_review_sha, draft, state, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'open', ?)
+         ON CONFLICT(repo_owner, repo_name, pr_number) DO UPDATE SET
+           head_sha=COALESCE(excluded.head_sha, pull_requests.head_sha),
+           last_reviewed_sha=excluded.last_reviewed_sha,
+           last_successful_review_sha=excluded.last_successful_review_sha,
+           last_full_review_sha=COALESCE(excluded.last_full_review_sha, pull_requests.last_full_review_sha),
+           updated_at=excluded.updated_at`
       )
-      .run(lastReviewed, lastSuccessful, lastFull, now, owner, name, prNumber);
+      .run(owner, name, prNumber, headSha, lastReviewed, lastSuccessful, lastFull, now);
   }
 
   // ---- repository state ----------------------------------------------------

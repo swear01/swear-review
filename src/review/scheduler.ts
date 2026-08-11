@@ -151,6 +151,7 @@ export class Scheduler {
     }
     const headSha: string = pr.data.head.sha;
     const baseSha: string = pr.data.base.sha;
+    this.ctx.db.upsertPullRequest(owner, name, prNumber, headSha, baseSha, !!pr.data.draft, pr.data.state);
 
     switch (command.kind) {
       case 'full':
