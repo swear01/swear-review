@@ -27,6 +27,9 @@ export class FakeGitHubApi implements GitHubApi {
   pullsGetError: Error | null = null;
   /** if set, createReview throws */
   createReviewError: Error | null = null;
+  /** mimic real GitHub: createReview response omits the comments array */
+  omitReviewComments = true;
+  /** comments returned by listCommentsForReview (matched by review id) */
 
   private nextReviewId = 1;
   private nextCommentId = 1;
@@ -34,6 +37,8 @@ export class FakeGitHubApi implements GitHubApi {
   private nextRulesetId = 1;
   rulesets: Array<{ id: number; name: string }> = [];
   rulesetCreateError: Error | null = null;
+  /** repo-level review comments (mirrors GET /pulls/{n}/comments) */
+  reviewComments: Array<{ id: number; review_id: number; path: string; line: number | null; start_line: number | null; original_line: number | null }> = [];
 
   record(name: string, params: Record<string, unknown>): void {
     const list = this.calls.get(name) ?? [];
@@ -71,13 +76,36 @@ export class FakeGitHubApi implements GitHubApi {
           }),
           createReview: fakeEndpoint('pulls.createReview', (n, p) => self.record(n, p), (p) => {
             if (self.createReviewError) throw self.createReviewError;
-            const comments = ((p.comments as Array<Record<string, unknown>>) ?? []).map((c) => ({
-              id: self.nextReviewId++,
-              path: c.path,
-              line: c.line,
-              start_line: c.start_line ?? null,
-            }));
-            return { data: { id: self.nextReviewId, comments } };
+            const reviewId = self.nextReviewId++;
+            for (const c of (p.comments as Array<Record<string, unknown>>) ?? []) {
+              self.reviewComments.push({
+                id: self.nextCommentId++,
+                review_id: reviewId,
+                path: String(c.path ?? ''),
+                line: (c.line as number) ?? null,
+                start_line: (c.start_line as number) ?? null,
+                original_line: (c.line as number) ?? null,
+              });
+            }
+            if (self.omitReviewComments) {
+              // real GitHub: response has no comments array
+              return { data: { id: reviewId } };
+            }
+            return {
+              data: {
+                id: reviewId,
+                comments: self.reviewComments.filter((c) => c.review_id === reviewId).map((c) => ({ id: c.id, path: c.path, line: c.line, start_line: c.start_line })),
+              },
+            };
+          }),
+          listCommentsForReview: fakeEndpoint('pulls.listCommentsForReview', (n, p) => self.record(n, p), (p) => {
+            const reviewId = Number(p.review_id);
+            // real GitHub returns no line positions from this endpoint
+            return { data: self.reviewComments.filter((c) => c.review_id === reviewId).map((c) => ({ id: c.id, path: c.path })) };
+          }),
+          listReviewCommentsForRepo: fakeEndpoint('pulls.listReviewCommentsForRepo', (n, p) => self.record(n, p), () => {
+            const sorted = [...self.reviewComments].sort((a, b) => b.id - a.id);
+            return { data: sorted.map((c) => ({ id: c.id, path: c.path, line: c.line, original_line: c.original_line, start_line: c.start_line })) };
           }),
         },
         issues: {

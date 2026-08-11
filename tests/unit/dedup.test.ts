@@ -92,10 +92,12 @@ describe('isDuplicate', () => {
     expect(isDuplicate([row({ start_line: 10, end_line: 12 })], f, fp)).toBe(false);
   });
 
-  it('keeps dissimilar text even with overlap', () => {
-    const f = { path: 'src/a.ts', startLine: 11, endLine: 13, category: 'bug', message: 'Add input validation for untrusted data' };
+  it('dedups same location + category even when LLM prose differs between runs', () => {
+    // Regression from production E2E: OCR re-reports the same bug at the same
+    // lines with entirely different wording on the next full review.
+    const f = { path: 'src/a.ts', startLine: 11, endLine: 13, category: 'bug', message: 'The change adds `- 1` to the returned value, so average no longer returns the mean.' };
     const fp = fingerprintFinding({ ...ctx, ...f });
-    const existing = [row({ start_line: 10, end_line: 12, category: 'bug', body: 'Null pointer deref of input' })];
-    expect(isDuplicate(existing, f, fp)).toBe(false);
+    const existing = [row({ start_line: 10, end_line: 12, category: 'bug', body: 'Due to operator precedence, total / values.length - 1 computes the average minus one.' })];
+    expect(isDuplicate(existing, f, fp)).toBe(true);
   });
 });

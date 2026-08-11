@@ -351,6 +351,44 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     }
   });
 
+  it('accepts pull_request.synchronize payloads whose installation lacks account (real GitHub shape)', async () => {
+    // Real 2026 GitHub payload: installation contains only id/node_id for
+    // pull_request events. Regression for a bug found in production E2E.
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-noacct'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('pull_request', {
+        action: 'synchronize',
+        number: 12,
+        pull_request: {
+          number: 12, state: 'open', draft: false, title: 'T',
+          user: { login: 'alice' },
+          head: { sha: repo.headSha, ref: 'feature' },
+          base: { sha: repo.baseSha, ref: 'main' },
+        },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        // NOTE: no account field — matches the real pull_request payload
+        installation: { id: 123, node_id: 'MDIzOkludGVncmF0aW9uSW5zdGFsbGF0aW9uMTIz' },
+      });
+      await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 12)?.status === 'completed', 30_000);
+      const job = harness.db.getLatestJob('test-owner', 'demo', 12)!;
+      expect(job.status).toBe('completed');
+      expect(job.trigger).toBe('synchronize');
+      // installation upserted with owner fallback
+      const install = harness.db.db.prepare('SELECT * FROM installations WHERE id = 123').get() as { account_login: string };
+      expect(install.account_login).toBe('test-owner');
+    } finally {
+      harness.cleanup();
+    }
+  });
+
   it('Test L: external author without write permission → auto review skipped, no LLM call', async () => {
     const github = new FakeGitHubApi();
     github.permission = 'read';
