@@ -1,19 +1,28 @@
 # syntax=docker/dockerfile:1
 # Swear Review — GitHub-native AI code review bot
-#   Node.js 24 + Git >= 2.41 + Alibaba Open Code Review v1.9.0
+#   Node.js 24 + Git >= 2.41 (Debian Trixie) + Alibaba Open Code Review v1.9.0
 
-FROM node:24-bookworm-slim AS base
+FROM node:24-trixie-slim AS base
 
-# OCR requires Git >= 2.41; Debian bookworm ships 2.39, so use backports.
-RUN echo 'deb http://deb.debian.org/debian bookworm-backports main' > /etc/apt/sources.list.d/backports.list \
-  && apt-get update \
-  && apt-get install -y --no-install-recommends -t bookworm-backports git ca-certificates \
+# OCR requires Git >= 2.41. Trixie ships Git 2.47.x; assert at build time so an
+# accidental base-image downgrade fails the build.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends git ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
-  && git --version
+  && git --version \
+  && GITVER=$(git --version | grep -oE '[0-9]+\.[0-9]+' | head -1) \
+  && MAJOR=${GITVER%%.*} \
+  && MINOR=${GITVER##*.} \
+  && if [ "$MAJOR" -gt 2 ] || { [ "$MAJOR" -eq 2 ] && [ "$MINOR" -ge 41 ]; }; then \
+       echo "Git version OK: $(git --version)"; \
+     else \
+       echo "ERROR: OCR requires Git >= 2.41; found $(git --version)"; exit 1; \
+     fi
 
-# OCR is a native binary — install the pinned release globally
+# OCR is a native binary — install the pinned release globally and assert it.
 RUN npm install -g @alibaba-group/open-code-review@1.9.0 --no-audit --no-fund \
-  && ocr version
+  && ocr version 2>&1 | grep -q '1.9.0' \
+  && echo "OCR version OK: $(ocr version 2>&1 | head -1)"
 
 WORKDIR /app
 

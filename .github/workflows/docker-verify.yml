@@ -1,0 +1,95 @@
+name: Docker verification
+
+# Builds the production Docker image from scratch and verifies:
+#   - Git >= 2.41 (OCR requirement, asserted in the Dockerfile AND here)
+#   - OCR 1.9.0 is installed
+#   - the container boots with dummy config and /healthz + /readyz respond
+# Fails on any image/build/runtime problem.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production image from scratch
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          load: true
+          tags: swear-review:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Assert Git >= 2.41
+        run: |
+          set -euo pipefail
+          gv=$(docker run --rm --entrypoint git swear-review:ci --version)
+          echo "git: $gv"
+          mm=$(echo "$gv" | grep -oE '[0-9]+\.[0-9]+' | head -1)
+          maj=${mm%%.*}
+          min=${mm##*.}
+          if [ "$maj" -gt 2 ] || { [ "$maj" -eq 2 ] && [ "$min" -ge 41 ]; }; then
+            echo "PASS: Git >= 2.41"
+          else
+            echo "FAIL: Git too old: $gv"
+            exit 1
+          fi
+
+      - name: Assert OCR 1.9.0
+        run: |
+          set -euo pipefail
+          ov=$(docker run --rm --entrypoint ocr swear-review:ci version)
+          echo "ocr: $ov"
+          if echo "$ov" | grep -q '1.9.0'; then
+            echo "PASS: OCR 1.9.0"
+          else
+            echo "FAIL: OCR version mismatch"
+            exit 1
+          fi
+
+      - name: Smoke test /healthz and /readyz
+        run: |
+          set -euo pipefail
+          openssl genrsa -out "$RUNNER_TEMP/gh-key.pem" 2048
+          docker run -d --name swear-review-smoke -p 3999:3000 \
+            -e GITHUB_APP_ID=123456 \
+            -e GITHUB_APP_PRIVATE_KEY_PATH=/gh-key.pem \
+            -e GITHUB_WEBHOOK_SECRET=ci-secret \
+            -e OPENCODE_GO_KEY=sk-ci-dummy \
+            -e CONFIG_PATH=/nonexistent/config.yaml \
+            -e DATABASE_PATH=/tmp/ci.db \
+            -v "$RUNNER_TEMP/gh-key.pem:/gh-key.pem:ro" \
+            swear-review:ci
+          trap 'echo "--- container logs ---"; docker logs swear-review-smoke || true; docker rm -f swear-review-smoke >/dev/null 2>&1 || true' EXIT
+          ready=0
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3999/healthz >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          [ "$ready" = 1 ] || { echo "FAIL: /healthz never became ready"; exit 1; }
+          echo "--- /healthz ---"
+          curl -fsS http://127.0.0.1:3999/healthz
+          echo
+          echo "--- /readyz ---"
+          curl -fsS http://127.0.0.1:3999/readyz
+          echo
+          echo "PASS: health endpoints"

@@ -137,7 +137,9 @@ Precedence: hardcoded defaults → global config → repository glob → exact r
 docker compose up -d --build
 ```
 
-The image contains Node 24, Git ≥ 2.41, and OCR v1.9.0. `/data/` (persistent volume) holds `config.yaml` and `swear-review.db`. Review workspaces (`/tmp/swear-review`) are ephemeral and cleaned up after each job.
+The image contains Node 24, Git ≥ 2.41 (Debian Trixie), and OCR v1.9.0. `/data/` (persistent volume) holds `config.yaml` and `swear-review.db`. Review workspaces (`/tmp/swear-review`) are ephemeral and cleaned up after each job.
+
+The production image is verified automatically by the **Docker verification** GitHub Actions workflow (`.github/workflows/docker-verify.yml`): it builds from scratch, asserts Git ≥ 2.41 and OCR 1.9.0 inside the image, boots the container with dummy config, and smoke-tests `/healthz` + `/readyz`.
 
 ### From source
 
@@ -220,6 +222,10 @@ The OCR JSON contract is validated by `tests/unit/ocr-adapter.test.ts` against a
 | `GET /metrics` | basic counters (reviews, findings, OCR failures, publish failures, dedup, webhooks) |
 
 Logs are structured JSON. Each review logs `installation_id`, repo, PR, job id, head SHA, mode, OCR version, model, duration, finding count, exit status. Secrets are redacted by key name.
+
+## 8. Real-world E2E status
+
+Automated coverage (unit + integration + Docker verification) is green, but **production E2E against a real GitHub App + real OpenCode Go key has not been run yet**. The full runbook lives in [`docs/E2E-CHECKLIST.md`](docs/E2E-CHECKLIST.md) — every item there must pass before this project is declared production-verified.
 
 ## FAQ / notes
 
