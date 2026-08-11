@@ -1,0 +1,30 @@
+services:
+  swear-review:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # ---- GitHub App ----
+      GITHUB_APP_ID: "${GITHUB_APP_ID:?set in .env}"
+      # Point to the PEM file mounted below
+      GITHUB_APP_PRIVATE_KEY_PATH: /run/secrets/github-app.private-key.pem
+      GITHUB_WEBHOOK_SECRET: "${GITHUB_WEBHOOK_SECRET:?set in .env}"
+      # ---- OpenCode Go ----
+      OPENCODE_GO_KEY: "${OPENCODE_GO_KEY:?set in .env}"
+      # ---- Swear Review ----
+      PORT: "3000"
+      CONFIG_PATH: /data/config.yaml
+      DATABASE_PATH: /data/swear-review.db
+      LOG_LEVEL: "${LOG_LEVEL:-info}"
+    volumes:
+      - ./data:/data
+      - ./config.yaml:/data/config.yaml:ro
+      # Mount your downloaded private key here (or bake it into the image)
+      - ./github-app.private-key.pem:/run/secrets/github-app.private-key.pem:ro
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

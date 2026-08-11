@@ -1,0 +1,79 @@
+# Central Swear Review configuration — the ONLY configuration source.
+# Target repositories never need any file. See README.md for details.
+
+app:
+  name: "Swear Review"
+  # GitHub Check Run name
+  check_name: "Swear Review"
+
+review:
+  # Auto review on PR events
+  auto: true
+  # Always full-PR review on automatic triggers
+  default_mode: full
+  # Draft PRs: auto review off until ready_for_review (manual commands still work)
+  review_drafts: false
+  triggers:
+    opened: true
+    synchronize: true
+    reopened: true
+    ready_for_review: true
+
+ocr:
+  # Pinned release. Upgrade only after running the contract tests.
+  version: "1.9.0"
+  # Fixed concurrency — no adaptive fallback by design.
+  concurrency: 16
+  # `ocr` binary on PATH, or an absolute path
+  binary: "ocr"
+  # Per-file task timeout passed to `ocr review --timeout`
+  timeout_minutes: 10
+  # Hard kill after this many minutes (guard against hangs)
+  hard_timeout_minutes: 45
+  # Extra env vars for the OCR process (no secrets here)
+  extra_env: {}
+
+llm:
+  url: "https://opencode.ai/zen/go/v1/chat/completions"
+  model: "deepseek-v4-flash"
+  use_anthropic: false
+
+publication:
+  deduplicate: true
+  sticky_summary: true
+  # MAX_REVIEW_COMMENTS_PER_BATCH
+  comment_batch_size: 50
+
+workers:
+  # Service-level concurrent PR jobs (NOT model concurrency; OCR stays at 16)
+  max_review_jobs: 2
+  poll_interval_ms: 1000
+  workspace_dir: "/tmp/swear-review"
+  # Clone URL template ({owner}/{repo} substituted)
+  clone_url_template: "https://github.com/{owner}/{repo}.git"
+  # Partial clone (blob:none). Automatically disabled for non-https remotes.
+  partial_clone: true
+
+security:
+  # Public repos: auto-review trusted collaborators only by default.
+  # Set to true to auto-review any external contributor PR (uses your quota).
+  auto_review_external_prs: false
+
+gate:
+  # off | check | managed
+  mode: off
+  # Categories that block merging (severity is ignored — category is what counts)
+  block_categories:
+    - bug
+    - security
+  # If the review infrastructure fails, the check fails closed
+  fail_closed_on_review_error: true
+
+# Per-repository overrides (precedence: defaults < global < glob < exact)
+repositories:
+  # "OWNER/critical-project":
+  #   gate:
+  #     mode: managed
+  # "OWNER/experimental-*":
+  #   review:
+  #     auto: false

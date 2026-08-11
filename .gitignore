@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/
+*.log
+.env
+.github-app.private-key.pem
+.DS_Store
+coverage/
+tmp/
+*.tsbuildinfo

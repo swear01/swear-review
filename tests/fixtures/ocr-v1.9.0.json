@@ -1,0 +1,93 @@
+{
+  "status": "complete",
+  "llm": {
+    "model": "deepseek-v4-flash"
+  },
+  "message": "Review complete: 3 finding(s) across 1 selected item(s).",
+  "summary": {
+    "files_reviewed": 1,
+    "comments": 3,
+    "total_tokens": 3600,
+    "input_tokens": 3000,
+    "output_tokens": 600,
+    "elapsed": "1s"
+  },
+  "tool_calls": {
+    "total": 1,
+    "by_tool": {
+      "code_comment": 1
+    }
+  },
+  "comments": [
+    {
+      "path": "src/main.ts",
+      "content": "Possible null dereference of `input`.",
+      "suggestion_code": "input?.trim()",
+      "existing_code": "input.trim()",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "src/main.ts",
+      "content": "Loop performs a query per item (N+1).",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "performance",
+      "severity": "medium"
+    },
+    {
+      "path": "src/main.ts",
+      "content": "Out of bounds access",
+      "start_line": 0,
+      "end_line": 0,
+      "category": "security",
+      "severity": "critical"
+    }
+  ],
+  "session_id": "19d8c6b2-7d9f-4d5a-9dcf-a243cc96ba04",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "19d8c6b2-7d9f-4d5a-9dcf-a243cc96ba04",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "main",
+      "requested_head": "feature",
+      "resolved_base": "18ba7a04f20d1cf9508be697d3d7eb70b1ac8d12",
+      "resolved_head": "686ed4e0d49050649454ef244eaca5711147e0f4",
+      "exact_range": "18ba7a04f20d1cf9508be697d3d7eb70b1ac8d12..686ed4e0d49050649454ef244eaca5711147e0f4",
+      "source_artifact_sha256": "017798b4ca3398a219282e76dc7f528c7a5322fa8c9c2c4ff2255672770a23ad"
+    },
+    "execution": {
+      "ocr_version": "v1.9.0",
+      "model": "deepseek-v4-flash",
+      "configured_concurrency": 16,
+      "rule_config_sha256": "e1b2f0417121eee7bad5c816efedf3ff4147832e498d241ddff7763075e2c6af",
+      "runtime_config_sha256": "41219972f5b340f96aebcfe9875df43efdbe810dd19cc5a40c0458b0f1a5b3db"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "fd2d1aa0339c49710822ee0636a57e49459c5c3f5df0fdeb865c154874809104",
+          "path": "src/main.ts",
+          "fingerprint": "b5be21d02045dda3fa3c9fd3716d5909da0f33dbd22e66c806d009556e2b5bda"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "fd2d1aa0339c49710822ee0636a57e49459c5c3f5df0fdeb865c154874809104",
+          "path": "src/main.ts",
+          "fingerprint": "b5be21d02045dda3fa3c9fd3716d5909da0f33dbd22e66c806d009556e2b5bda"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 528
+  }
+}
