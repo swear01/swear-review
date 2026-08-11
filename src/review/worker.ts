@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import type { ServiceContext } from '../context.js';
 import type { JobRecord } from '../types.js';
 import type { Logger } from '../util/logger.js';
-import { checkoutRepository, cleanupWorkspace } from './checkout.js';
+import { checkoutRepository, cleanupWorkspace, buildGitEnv } from './checkout.js';
 import { runOcr, createOcrHome } from './ocr-runner.js';
 import { parseOcrOutput } from './ocr-adapter.js';
 import { publishReviewResult } from './publisher.js';
@@ -167,6 +167,9 @@ export class Worker {
         repoDir: checkout.repoDir,
         homeDir,
         ocrEnv: {
+          // OCR's git subprocesses lazy-fetch blobs in a partial clone;
+          // without this auth the diff resolution fails with 0 selected files.
+          ...buildGitEnv(token),
           OCR_LLM_URL: resolved.llm.url,
           OCR_LLM_TOKEN: this.ctx.opencodeKey,
           OCR_LLM_MODEL: resolved.llm.model,

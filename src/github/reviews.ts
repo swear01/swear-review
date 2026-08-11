@@ -16,6 +16,13 @@ interface InlineCommentInput {
   body: string;
 }
 
+interface RawReviewComment {
+  id: number | bigint;
+  path?: string | null;
+  line?: number | null;
+  original_line?: number | null;
+}
+
 /**
  * Converts a finding into a GitHub review-comment payload.
  * GitHub inline comments require the line to exist in the PR diff; findings
@@ -41,6 +48,43 @@ export function buildCommentBody(f: Finding): string {
   }
   lines.push('', '— *Swear Review*');
   return lines.join('\n');
+}
+
+/**
+ * Attaches real GitHub comment ids to the just-published batch.
+ * `pulls.createReview` and `pulls.listCommentsForReview` return no line
+ * positions (real GitHub behavior), so we match against the repo-level review
+ * comments endpoint (newest first, per (path, line)).
+ */
+async function attachCommentIds(
+  octokit: InstallationOctokit,
+  input: { owner: string; repo: string; prNumber: number },
+  batch: InlineCommentInput[],
+): Promise<Array<{ id: number | null; path: string; line: number; startLine: number | null }>> {
+  const wanted = batch.map((c) => ({ path: c.path, line: c.line, startLine: c.startLine ?? null }));
+  const found = new Map<string, RawReviewComment>();
+  let page = 1;
+  while (found.size < wanted.length && page <= 10) {
+    const res = await octokit.rest.pulls.listReviewCommentsForRepo({
+      owner: input.owner,
+      repo: input.repo,
+      pull_number: input.prNumber,
+      per_page: 100,
+      sort: 'created',
+      direction: 'desc',
+      page,
+    });
+    for (const c of res.data) {
+      const key = `${c.path ?? ''}:${c.line ?? c.original_line ?? ''}`;
+      if (!found.has(key)) found.set(key, c as RawReviewComment);
+    }
+    if (res.data.length < 100) break;
+    page++;
+  }
+  return wanted.map((w) => {
+    const rc = found.get(`${w.path}:${w.line}`);
+    return rc ? { id: Number(rc.id), path: w.path, line: w.line, startLine: w.startLine } : { id: null, path: w.path, line: w.line, startLine: w.startLine };
+  });
 }
 
 /**
@@ -74,7 +118,7 @@ export async function postInlineComments(
     const batch = batches[b]!;
     const reviewBody = `Swear Review — ${input.mode === 'full' ? 'Full PR' : 'Incremental'} review · batch ${b + 1}/${batches.length} · OCR ${input.ocrVersion} · ${input.model}`;
     try {
-      const res = await octokit.rest.pulls.createReview({
+      await octokit.rest.pulls.createReview({
         owner: input.owner,
         repo: input.repo,
         pull_number: input.prNumber,
@@ -89,14 +133,9 @@ export async function postInlineComments(
           body: c.body,
         })),
       });
-      const reviewComments = (res.data as unknown as { comments?: Array<{ id: number | bigint; path?: string | null; line?: number | null; start_line?: number | null }> }).comments ?? [];
-      for (const rc of reviewComments) {
-        published.push({
-          githubCommentId: Number(rc.id),
-          path: rc.path ?? '',
-          line: rc.line ?? 0,
-          startLine: rc.start_line ?? null,
-        });
+      const attached = await attachCommentIds(octokit, input, batch);
+      for (const a of attached) {
+        published.push({ githubCommentId: a.id, path: a.path, line: a.line, startLine: a.startLine });
       }
     } catch (err) {
       log.warn(
@@ -105,7 +144,7 @@ export async function postInlineComments(
       );
       for (const c of batch) {
         try {
-          const res = await octokit.rest.pulls.createReview({
+          await octokit.rest.pulls.createReview({
             owner: input.owner,
             repo: input.repo,
             pull_number: input.prNumber,
@@ -122,10 +161,8 @@ export async function postInlineComments(
               },
             ],
           });
-          const rc = (res.data as unknown as { comments?: Array<{ id: number | bigint; path?: string | null; line?: number | null; start_line?: number | null }> }).comments?.[0];
-          if (rc) {
-            published.push({ githubCommentId: Number(rc.id), path: rc.path ?? '', line: rc.line ?? 0, startLine: rc.start_line ?? null });
-          }
+          const attached = await attachCommentIds(octokit, input, [c]);
+          published.push({ githubCommentId: attached[0]!.id, path: c.path, line: c.line, startLine: c.startLine ?? null });
         } catch (err2) {
           log.warn({ err: (err2 as Error).message, path: c.path, line: c.line }, 'inline comment failed; routing to summary');
           failed.push(c);

@@ -79,9 +79,13 @@ export function fingerprintFinding(input: {
 }
 
 /**
- * Dedup decision:
+ * Dedup decision (spec §13: full compute + deduplicated publication):
  *  1. exact fingerprint match → duplicate
- *  2. same path + overlapping lines + same category + similar text → duplicate
+ *  2. same path + overlapping lines + same category → duplicate
+ *
+ * Text similarity is intentionally NOT required: LLM prose varies between runs
+ * for the same underlying issue, so (path, line range, category) overlap is the
+ * reliable anti-spam signal — matching the OCR Action's own publication policy.
  */
 export function isDuplicate(
   existing: PublishedCommentRow[],
@@ -96,7 +100,7 @@ export function isDuplicate(
       { startLine: e.start_line ?? undefined, endLine: e.end_line ?? undefined },
       { startLine: f.startLine, endLine: f.endLine },
     )) continue;
-    if (textSimilarity(e.body, f.message) >= SIMILARITY_THRESHOLD) return true;
+    return true;
   }
   return false;
 }

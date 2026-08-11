@@ -139,7 +139,7 @@ export async function publishReviewResult(ctx: ServiceContext, input: PublishInp
       githubCommentId: p.githubCommentId,
       path: p.path,
       startLine: p.startLine ?? undefined,
-      endLine: undefined,
+      endLine: item?.finding.endLine,
       category: item?.finding.category,
       fingerprint,
       body: item?.finding.message ?? '',

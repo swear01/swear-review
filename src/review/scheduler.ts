@@ -63,7 +63,13 @@ export class Scheduler {
     const baseSha: string = pr.base.sha;
     const draft: boolean = !!pr.draft;
 
-    this.ctx.db.upsertInstallation(installationId, payload.installation.account.login, payload.installation.account.type);
+    // Real pull_request payloads may omit installation.account (only id/node_id).
+    const instAccount = payload.installation?.account;
+    this.ctx.db.upsertInstallation(
+      installationId,
+      instAccount?.login ?? owner,
+      instAccount?.type ?? 'User',
+    );
     this.ctx.db.upsertRepository(owner, name, installationId, !!repo.private, repo.default_branch);
     this.ctx.db.upsertPullRequest(owner, name, prNumber, headSha, baseSha, draft, pr.state);
 
@@ -126,7 +132,7 @@ export class Scheduler {
     const name: string = repo.name;
     const prNumber: number = issue.number;
 
-    this.ctx.db.upsertInstallation(installationId, payload.installation.account.login, payload.installation.account.type);
+    this.ctx.db.upsertInstallation(installationId, payload.installation.account?.login ?? owner, payload.installation.account?.type ?? 'User');
     this.ctx.db.upsertRepository(owner, name, installationId, !!repo.private, repo.default_branch);
     this.ctx.metrics.commandsReceived.inc({ repo: `${owner}/${name}`, command: command.kind });
 

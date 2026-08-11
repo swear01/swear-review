@@ -105,14 +105,20 @@ export function cleanupWorkspace(workspaceDir: string): void {
 /**
  * Auth is injected through git config environment variables so the
  * installation token never appears in argv or process listings.
+ * GitHub's git smart-HTTP accepts `AUTHORIZATION: basic <base64(x-access-token:TOKEN)>`
+ * (the GitHub Actions pattern); `Bearer` is rejected by git endpoints.
+ *
+ * Also returned to callers so the OCR process (and its git subprocesses, which
+ * lazy-fetch blobs in a partial clone) inherits the same auth.
  */
-function buildGitEnv(token: string): NodeJS.ProcessEnv {
+export function buildGitEnv(token: string): NodeJS.ProcessEnv {
+  const basic = Buffer.from(`x-access-token:${token}`, 'utf8').toString('base64');
   return {
     ...process.env,
     GIT_TERMINAL_PROMPT: '0',
     GIT_CONFIG_COUNT: '3',
     GIT_CONFIG_KEY_0: 'http.extraHeader',
-    GIT_CONFIG_VALUE_0: `Authorization: Bearer ${token}`,
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
     GIT_CONFIG_KEY_1: 'http.version',
     GIT_CONFIG_VALUE_1: 'HTTP/1.1',
     GIT_CONFIG_KEY_2: 'protocol.version',

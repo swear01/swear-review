@@ -14,7 +14,10 @@ export class Database {
   constructor(path: string) {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
-    this.db.exec('PRAGMA journal_mode = WAL;');
+    // Single-writer process: plain rollback journal (no WAL files). WAL on some
+    // container/mount filesystems (e.g. colima bind mounts) can lose
+    // uncheckpointed writes when the -wal file is dropped.
+    this.db.exec('PRAGMA journal_mode = DELETE;');
     this.db.exec('PRAGMA busy_timeout = 5000;');
     this.db.exec('PRAGMA foreign_keys = ON;');
     this.migrate();
