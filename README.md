@@ -225,7 +225,17 @@ Logs are structured JSON. Each review logs `installation_id`, repo, PR, job id, 
 
 ## 8. Real-world E2E status
 
-Automated coverage (unit + integration + Docker verification) is green, but **production E2E against a real GitHub App + real OpenCode Go key has not been run yet**. The full runbook lives in [`docs/E2E-CHECKLIST.md`](docs/E2E-CHECKLIST.md) — every item there must pass before this project is declared production-verified.
+**EXECUTED 2026-08-11** — production E2E verified against the real GitHub App
+(`swear-review`, App ID APP_ID_REDACTED) installed on the personal account
+(`repository_selection: all`), the real OpenCode Go credential, and real
+`deepseek-v4-flash` traffic. Full results, OCR-quality observations, and the
+checklist are in [`docs/E2E-CHECKLIST.md`](docs/E2E-CHECKLIST.md).
+
+Five real production bugs were found and fixed during the E2E (webhook payload
+shape, git clone auth, OCR partial-clone auth, comment-id bookkeeping, WAL
+durability, dedup policy) — see `git log` for the `fix(e2e)` / `test(e2e)`
+commits. Note: the webhook currently points at an ephemeral Cloudflare quick
+tunnel; replace it with a stable HTTPS endpoint for long-term operation.
 
 ## FAQ / notes
 
