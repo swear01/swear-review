@@ -17,6 +17,7 @@ async function main(): Promise<void> {
   const log = createLogger(env.logLevel);
   const metrics = new Metrics();
   const config = loadConfigFile(env.configPath);
+  if (env.ocrBinary) config.ocr.binary = env.ocrBinary;
   const db = new Database(env.databasePath);
   const github = new RealGitHubApi(env.githubAppId, env.githubAppPrivateKey, log);
 
