@@ -166,6 +166,7 @@ export async function publishReviewResult(ctx: ServiceContext, input: PublishInp
       routedToSummary: routedToSummary.length,
       routedFindings: routedToSummary.map((r) => r.finding),
       status: 'Completed',
+      statusDetail: ocr.status === 'skipped' ? ocr.message : undefined,
       gateMode: input.gateMode,
       blocking: input.blocking,
       blockReason: input.blockReason,

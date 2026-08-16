@@ -197,6 +197,10 @@ export class Worker {
         this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
         throw new ReviewError('ocr', `OCR review failed: ${ocr.message ?? 'unknown error'}`);
       }
+      if (ocr.status === 'skipped') {
+        // OCR selected no files (e.g. docs-only PR): benign empty review.
+        log.info({ message: ocr.message }, 'OCR skipped (no items selected)');
+      }
       if (ocr.configuredConcurrency !== undefined && ocr.configuredConcurrency !== resolved.ocr.concurrency) {
         log.warn({ ocrConcurrency: ocr.configuredConcurrency, expected: resolved.ocr.concurrency }, 'OCR reported unexpected concurrency');
       }
@@ -271,7 +275,11 @@ export class Worker {
             durationSec,
             counts: publish.counts,
             statusLine: gateDecision.conclusion === 'success' ? 'completed' : gateDecision.conclusion,
-            extra: gateDecision.blocking ? `Blocking categories: ${resolved.gate.block_categories.join(', ')}` : undefined,
+            extra: ocr.status === 'skipped'
+              ? ocr.message
+              : gateDecision.blocking
+                ? `Blocking categories: ${resolved.gate.block_categories.join(', ')}`
+                : undefined,
           }),
         },
       });

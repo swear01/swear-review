@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { parseOcrOutput, OcrSchemaError } from '../../src/review/ocr-adapter.js';
 
 const fixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0.json');
+const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-skipped.json');
 
 describe('parseOcrOutput', () => {
   it('parses the real v1.9.0 fixture (contract test)', () => {
@@ -49,5 +50,15 @@ describe('parseOcrOutput', () => {
     expect(result.status).toBe('failed');
     expect(result.message).toBe('provider down');
     expect(result.comments).toEqual([]);
+  });
+
+  it('accepts the real v1.9.0 skipped fixture (docs-only PR, no items selected)', () => {
+    const raw = readFileSync(skippedFixturePath, 'utf8');
+    const result = parseOcrOutput(raw);
+    expect(result.status).toBe('skipped');
+    expect(result.message).toBe('Review skipped: no items were selected.');
+    expect(result.comments).toEqual([]);
+    expect(result.summary?.comments).toBe(0);
+    expect(result.summary?.filesReviewed).toBe(0);
   });
 });

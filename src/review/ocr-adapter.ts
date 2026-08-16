@@ -78,7 +78,7 @@ const OcrResultSchema = z.object({
   manifest: OcrManifestSchema,
 });
 
-const VALID_STATUSES = new Set(['complete', 'success', 'failed', 'partial', 'cancelled']);
+const VALID_STATUSES = new Set(['complete', 'success', 'failed', 'partial', 'cancelled', 'skipped']);
 
 export class OcrSchemaError extends Error {
   constructor(message: string) {
@@ -104,6 +104,11 @@ export function parseOcrOutput(raw: string): OcrResult {
   if (!VALID_STATUSES.has(d.status)) {
     throw new OcrSchemaError(`Unknown OCR status "${d.status}" — refusing to publish. This may indicate an OCR upgrade with a new schema.`);
   }
+
+  // `skipped` (OCR >= 1.9.0): no files were selected for review — e.g. a
+  // docs-only PR whose diff contains no code files. It is a benign, empty
+  // review (comments: []), not a failure: Swear Review publishes the empty
+  // result so the check passes instead of failing the PR.
 
   const findings: Finding[] = (d.comments ?? []).map((c) => ({
     path: c.path,

@@ -24,6 +24,12 @@ const fixturePath =
   process.env.MOCK_OCR_FIXTURE ||
   path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-positioned.json');
 
+if (process.env.MOCK_OCR_SKIP === '1') {
+  const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-skipped.json');
+  process.stdout.write(readFileSync(skippedFixturePath, 'utf8'));
+  process.exit(0);
+}
+
 if (process.env.MOCK_OCR_FAIL === '1') {
   process.stdout.write(
     JSON.stringify({

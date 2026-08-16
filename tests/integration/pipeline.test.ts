@@ -295,6 +295,62 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     }
   });
 
+  it('OCR skipped (docs-only PR, no items selected) → check success with zero findings, summary carries the skip reason', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-skip'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      process.env.MOCK_OCR_SKIP = '1';
+      await harness.scheduler.handleEvent('pull_request', {
+        action: 'opened',
+        number: 7,
+        pull_request: {
+          number: 7, state: 'open', draft: false, title: 'T',
+          user: { login: 'alice' },
+          head: { sha: repo.headSha, ref: 'feature' },
+          base: { sha: repo.baseSha, ref: 'main' },
+        },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      await waitFor(() => {
+        const job = harness.db.getLatestJob('test-owner', 'demo', 7);
+        return job?.status === 'completed';
+      }, 30_000);
+
+      const job = harness.db.getLatestJob('test-owner', 'demo', 7)!;
+      const run = harness.db.getRun(job.review_run_id!)!;
+      expect(run.status).toBe('completed');
+      expect(run.finding_count).toBe(0);
+
+      // no inline comments, but sticky summary with the skip reason
+      expect(github.callsTo('pulls.createReview').length).toBe(0);
+      const summaries = github.callsTo('issues.createComment').filter((c) => String(c.params.body).includes('swear-review-summary'));
+      expect(summaries.length).toBe(1);
+      expect(String(summaries[0]!.params.body)).toContain('Review skipped: no items were selected.');
+
+      // check succeeds — a docs-only PR is not a review failure
+      expect(github.callsTo('checks.create').length).toBe(1);
+      const checkUpdate = github.callsTo('checks.update');
+      expect(checkUpdate.length).toBe(1);
+      expect(checkUpdate[0]!.params.conclusion).toBe('success');
+      expect(String(checkUpdate[0]!.params.output.text)).toContain('Review skipped: no items were selected.');
+
+      // repo recorded as reviewed so a later incremental run behaves correctly
+      const prRow = harness.db.getPullRequest('test-owner', 'demo', 7)!;
+      expect(prRow.last_successful_review_sha).toBe(repo.headSha);
+    } finally {
+      delete process.env.MOCK_OCR_SKIP;
+      harness.cleanup();
+    }
+  });
+
   it('Test C: re-push → entire PR re-reviewed, duplicate comments suppressed', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;
