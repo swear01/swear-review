@@ -226,12 +226,16 @@ contributors cannot consume the configured model quota by default.
 
 See **[`docs/deployment.md`](docs/deployment.md)** for:
 
-- Docker and systemd deployment
+- Docker and Git-backed systemd deployment
 - secret handling and backups
 - OCR upgrades and contract tests
 - safe release/rollback steps
 - health and readiness verification
 - production troubleshooting
+
+The Oracle release path is `./scripts/deploy-oracle.sh <ref>`; it fetches a clean
+Git checkout, runs the test/build gate, reloads systemd, restarts the service,
+and verifies both health endpoints.
 
 The short version for an OCR or application release is:
 
