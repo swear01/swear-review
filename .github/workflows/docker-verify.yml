@@ -17,7 +17,10 @@ permissions:
 
 jobs:
   docker-verify:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head_repository.full_name != github.repository && 'ubuntu-latest' || 'mazu-ci' }}
+    timeout-minutes: 60
+    env:
+      CI_HOST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head_repository.full_name != github.repository && '127.0.0.1' || 'host.docker.internal' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,7 +82,7 @@ jobs:
           trap 'echo "--- container logs ---"; docker logs swear-review-smoke || true; docker rm -f swear-review-smoke >/dev/null 2>&1 || true' EXIT
           ready=0
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:3999/healthz >/dev/null 2>&1; then
+            if curl -fsS "http://${CI_HOST}:3999/healthz" >/dev/null 2>&1; then
               ready=1
               break
             fi
@@ -87,9 +90,9 @@ jobs:
           done
           [ "$ready" = 1 ] || { echo "FAIL: /healthz never became ready"; exit 1; }
           echo "--- /healthz ---"
-          curl -fsS http://127.0.0.1:3999/healthz
+          curl -fsS "http://${CI_HOST}:3999/healthz"
           echo
           echo "--- /readyz ---"
-          curl -fsS http://127.0.0.1:3999/readyz
+          curl -fsS "http://${CI_HOST}:3999/readyz"
           echo
           echo "PASS: health endpoints"
