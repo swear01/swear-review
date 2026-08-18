@@ -17,10 +17,10 @@ permissions:
 
 jobs:
   docker-verify:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head_repository.full_name != github.repository && 'ubuntu-latest' || 'mazu-ci' }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'mazu-ci' }}
     timeout-minutes: 60
     env:
-      CI_HOST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head_repository.full_name != github.repository && '127.0.0.1' || 'host.docker.internal' }}
+      CI_HOST: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && '127.0.0.1' || 'host.docker.internal' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
