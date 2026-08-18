@@ -1,119 +1,121 @@
-# Swear Review — Real-World E2E Checklist
+# Real-World E2E Checklist
 
-> ## ✅ STATUS: EXECUTED
->
-> **Executed 2026-08-11** against the real GitHub App (`swear-review`, App ID APP_ID_REDACTED,
-> installed on personal account `example-owner`) with the real OpenCode Go credential and
-> real `deepseek-v4-flash` traffic. Test repository: `example-owner/swear-review-e2e` (private).
->
-> Results below are from live observations (service structured logs, GitHub API,
-> GitHub UI). Automated-suite items are marked `(auto: PASS)` where the unit /
-> integration / Docker suites already cover them.
+This checklist verifies the deployed GitHub App against a private test
+repository. It complements the local unit/integration suite.
 
-## Environment used
+> **Public-repository hygiene:** deployment-specific App IDs, installation IDs,
+> account names, repository names, webhook URLs, tunnel URLs, and credentials are
+> intentionally omitted from this document. Fill them in only in a private
+> operator copy.
+
+## Environment
 
 | Item | Value |
 | --- | --- |
-| GitHub account | `example-owner` |
-| GitHub App name / slug | Swear Review / `swear-review` |
-| App ID | APP_ID_REDACTED |
-| Installation | INSTALLATION_ID_REDACTED → `repository_selection: all` (after E2E) |
-| Webhook URL | `https://your-server.example.com/webhooks` (Cloudflare quick tunnel → local Docker service) |
-| Service | production Docker image (`node:24-trixie-slim`, git 2.47.3, OCR 1.9.0) |
-| LLM | OpenCode Go `https://opencode.ai/zen/go/v1/chat/completions` · `deepseek-v4-flash` |
-| Config | `gate: off` global; `gate: managed` for `example-owner/swear-review-e2e` during the gate test |
+| GitHub account | private operator account |
+| GitHub App | `Swear Review` |
+| App ID / installation | private deployment values |
+| Webhook URL | stable HTTPS `/webhooks` endpoint or temporary test tunnel |
+| Service | production Docker or systemd deployment |
+| LLM | configured OpenAI-compatible endpoint and model |
+| OCR | pinned release from `config.yaml` |
+| Test repository | private E2E repository owned by the operator |
 
-## Checklist results
+## A. Installation and automatic review
 
-### A. Installation & auto review
-
-| # | Step | Result |
+| # | Step | Expected result |
 | --- | --- | --- |
-| A1 | App installed on personal account | ✅ `repository_selection: all`; no target-repo files |
-| A2 | PR with intentional bugs triggers auto review | ✅ `pull_request.synchronize` → `auto review job enqueued (full)` |
-| A3 | Review completes | ✅ Check Run `Swear Review` created + completed |
-| A4 | Automatic review is FULL PR | ✅ `review_mode: "full"`, OCR range = merge-base `e1996cf` → head |
-| A5 | Native inline review comments | ✅ 5–7 `swear-review[bot]` inline comments per review, correct path/line |
-| A6 | Sticky summary | ✅ single comment (id 5250764404) updated in place: Mode/Model/OCR/Commit/counts/Status |
+| A1 | Install the GitHub App on a test account | Installation succeeds with intended repository selection |
+| A2 | Open a PR with a deliberately planted code bug | `pull_request.opened` enqueues a full review |
+| A3 | Wait for completion | Check Run is created and completed |
+| A4 | Inspect the OCR range | It covers merge-base → current HEAD |
+| A5 | Inspect findings | Inline comments use the correct file and line |
+| A6 | Inspect the summary | One sticky summary contains counts and status |
 
-### B. Model + concurrency actually used
+## B. Model and runtime contract
 
-| # | Item | Result |
+| # | Step | Expected result |
 | --- | --- | --- |
-| B1 | Startup log | ✅ `"ocr":"1.9.0","model":"deepseek-v4-flash","concurrency":16` |
-| B2 | OCR invocation concurrency | ✅ `configured_concurrency: 16` in OCR manifest (real run) |
-| B3 | Model confirmed | ✅ `model: deepseek-v4-flash` in every review run + Check output |
-| B4 | Endpoint | ✅ OpenCode Go `https://opencode.ai/zen/go/v1/chat/completions` (HTTP 200 smoke test + real OCR runs) |
+| B1 | Inspect startup logs | Configured OCR version, model, and concurrency are visible |
+| B2 | Inspect the OCR manifest | Requested concurrency and model match `config.yaml` |
+| B3 | Inspect the Check Run | Model and OCR version are reported |
+| B4 | Inspect provider traffic | The request reaches the configured endpoint; no key is logged |
 
-### C. Push again — full re-review + no spam
+## C. Re-push and deduplication
 
-| # | Item | Result |
+| # | Step | Expected result |
 | --- | --- | --- |
-| C1 | Second push → entire PR re-reviewed | ✅ `review_mode: full`, full merge-base range each time |
-| C2 | Stale protection | ✅ live: mid-review push cancelled the running review (`review job cancelled`, run `cancelled`); no stale comments |
-| C3 | Duplicate suppression | ✅ second full review: `deduped: 4–5, inlinePublished: 1` (only genuinely new findings posted) |
-| C4 | Comment batching | ✅ single batch used (`batch 1/1`); batching code path covered by unit/integration tests |
+| C1 | Push a second commit | The full PR is reviewed again |
+| C2 | Push while a review is running | The stale run is cancelled or discarded |
+| C3 | Compare summaries/comments | Duplicate findings are not reposted |
+| C4 | Create enough findings to exceed one batch | Review comments are published in bounded batches |
 
-### D. Manual commands
+## D. Manual commands
 
-| # | Command | Result |
-| --- | --- | --- |
-| D1 | `/swear-review full` | ✅ `trigger: manual`, full review, deduped: 5, no duplicates |
-| D2 | `/swear-review incremental` | ✅ `trigger: manual-incremental`, range `9304b02 (last success) → 716a252 (HEAD)` |
-| D3 | `/swear-review incremental` fallback | ✅ code path covered by integration test (`manual-incremental-fallback`) |
-| D4 | `/swear-review status` | ✅ full state reply: head/last-reviewed/last-successful/job/gate/OCR/model |
-| D5 | Permission denial | ✅ integration test `(auto: PASS)` — no external account created (would need a second GitHub account) |
+| Command | Expected result |
+| --- | --- |
+| `/swear-review full` | Full PR review is enqueued for an authorized user |
+| `/swear-review incremental` | Reviews last-successful HEAD → current HEAD, or falls back to full |
+| `/swear-review status` | Reports current head, review, job, gate, OCR, and model state |
+| `/swear-review help` | Lists available commands |
+| Same commands from a read-only user | Command is denied and no model job is created |
 
-### E. Merge gates
+## E. Merge gates
 
-| # | Item | Result |
-| --- | --- | --- |
-| E1 | gate=off with bug findings | ✅ Check **success** ("Review completed with N finding(s); gate mode is off"), merge unaffected |
-| E2 | gate=check | ✅ same conclusion logic; no ruleset changes `(auto: PASS)` |
-| E3 | gate=managed with bug findings | ✅ ruleset `Swear Review` created (id 20686471, active, `~DEFAULT_BRANCH`, required status check `Swear Review`); Check **failure** ("5 blocking finding(s) (bug)"); PR `mergeable_state: "blocked"` |
-| E4 | gate=managed, no blocking findings | ✅ `(auto: PASS)` — computeGateDecision unit test |
-| E5 | Plan limitation degradation | ✅ code path handled (403/404 → `unavailable`, review continues) `(auto: PASS)`; account plan allowed rulesets |
+Run the test repository through each mode:
 
-### F. Failure & cleanup
+- `gate.mode: off`: findings publish and the Check succeeds; merging is unaffected.
+- `gate.mode: check`: configured blocking categories make the Check fail.
+- `gate.mode: managed`: the App creates/updates the required-status ruleset when
+  the GitHub plan and App permissions allow it.
+- Managed-gate permission/plan failure: review publication continues and the
+  gate reports unavailable instead of killing the review.
 
-| # | Item | Result |
-| --- | --- | --- |
-| F1 | OCR/provider failure → fail-closed | ✅ `(auto: PASS)` integration test: Check failure, summary `Status: ❌ Failed`, no fake success |
-| F2 | Status after everything | ✅ `/swear-review status` reflects last run |
-| F3 | Cleanup | ✅ test repo left private + intact; secrets removed from temp dirs; `.e2e/` gitignored |
+## F. Failure and cleanup
 
-## Real OCR quality (baseline, untuned)
+- Provider/OCR failure produces a failed Check Run when fail-closed is enabled.
+- Failed reviews do not publish fake findings or fake success.
+- A newer HEAD cannot receive comments from an older review.
+- `/readyz` reports the database state correctly.
+- Temporary checkout/workspace directories are removed after the job.
+- The private E2E repository remains private and contains no production secret.
 
-Planted bugs in `src/calc.ts` / `src/extra.ts`:
+## G. OCR `skipped` status
 
-| Bug | Caught? | Category | Positioning |
-| --- | --- | --- | --- |
-| `average`: `total / values.length - 1` (operator precedence) | ✅ (most runs) | bug/high | exact line |
-| `firstOrNull` returns `values[1]` instead of `values[0]` | ⚠️ caught in some runs, missed in others | bug/high | — |
-| `clamp` ignores `min` bound | ⚠️ caught in the pre-E2E probe, missed in later runs | bug/high | — |
-| `indexOfFirstPositive`: `>= 0` instead of `> 0` | ✅ consistently | bug/high | exact line |
-| `firstPositive`: `>= 0` boundary | ✅ | bug/high | exact line |
-| `latestOrNull`: `items[length - 2]` | ✅ | bug/high | exact line |
-| `isEven`: `n % 2 === 1` inverted logic | ✅ | bug/high | exact line + range |
-| `toSlug`: no space→hyphen replacement | ✅ | bug/high | exact line |
+**Executed 2026-08-16 after the OCR adapter fix.** A docs-only PR was created in
+the private E2E repository. OCR 1.9.0 returned:
 
-- Latency per full PR review: ~56–123 s for a 2–3 file PR (LLM-dominated).
-- No 429 / rate-limit / provider errors observed across all runs (OCR internal retry never needed).
-- LLM output is non-deterministic: finding sets and wording vary between runs (dedup handles this via location+category).
+```json
+{
+  "status": "skipped",
+  "message": "Review skipped: no items were selected.",
+  "summary": { "files_reviewed": 0, "comments": 0 }
+}
+```
 
-## Production E2E acceptance
+Expected and observed result:
 
-- [x] Real GitHub App exists under the personal account (id APP_ID_REDACTED)
-- [x] Real App installed; installation targets **All repositories**
-- [x] Real webhook delivery succeeds (30/30 → HTTP 200); HMAC validation enabled
-- [x] Real OpenCode Go credential loaded; never committed/exposed
-- [x] Real `deepseek-v4-flash` request succeeds (HTTP 200 smoke + real OCR runs)
-- [x] Real private test repo + PR created
-- [x] PR event triggers automatic review; automatic review is FULL PR
-- [x] OCR real invocation uses concurrency 16; OCR 1.9.0; model deepseek-v4-flash
-- [x] Native inline PR review comments, sticky summary, Check Run
-- [x] Second push → another FULL PR review; publication dedup works; stale protection works
-- [x] `/swear-review status|full|incremental` work
-- [x] gate=off works; gate=managed works (ruleset + failed required check + merge blocked)
-- [x] Full regression suite green (62 tests), TypeScript clean, Docker build + smoke pass
-- [x] Test repository left available for inspection
+- no adapter/schema failure;
+- zero findings and zero inline comments;
+- sticky summary includes the skip reason;
+- Check Run concludes `success`;
+- the run is recorded as a successful review.
+
+This case must remain covered by both the real fixture contract test and the
+pipeline integration test. It is common for documentation-only changes and
+should never block a PR as an infrastructure failure.
+
+## Acceptance checklist
+
+- [ ] GitHub App installed with only the permissions required by the deployment
+- [ ] Webhook delivery succeeds with HMAC validation enabled
+- [ ] Private E2E repository used; no secrets committed
+- [ ] Automatic full review succeeds
+- [ ] Inline comments, sticky summary, and Check Run are correct
+- [ ] Re-push deduplication and stale protection work
+- [ ] Manual commands and permission denial work
+- [ ] All gate modes behave as configured
+- [ ] OCR failure is fail-closed
+- [ ] OCR `skipped` is an empty successful review
+- [ ] `/healthz`, `/readyz`, and structured logs are healthy
+- [ ] Temporary test data and tunnel processes are cleaned up

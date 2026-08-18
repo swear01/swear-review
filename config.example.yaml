@@ -22,7 +22,7 @@ review:
 ocr:
   # Pinned release. Upgrade only after running the contract tests.
   version: "1.9.0"
-  # Fixed concurrency — no adaptive fallback by design.
+  # Fixed per deployment; default 16, no adaptive fallback.
   concurrency: 16
   # `ocr` binary on PATH, or an absolute path
   binary: "ocr"
@@ -45,7 +45,8 @@ publication:
   comment_batch_size: 50
 
 workers:
-  # Service-level concurrent PR jobs (NOT model concurrency; OCR stays at 16)
+  # Service-level concurrent PR jobs (NOT model concurrency; OCR concurrency is
+  # fixed by the `ocr.concurrency` value above.)
   max_review_jobs: 2
   poll_interval_ms: 1000
   workspace_dir: "/tmp/swear-review"

@@ -5,5 +5,10 @@ tests
 .git
 *.log
 .env
+config.yaml
 .github-app.private-key.pem
+*.pem
+*.db
+*.sqlite
+*.sqlite3
 coverage

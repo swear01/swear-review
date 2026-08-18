@@ -1,245 +1,303 @@
 # Swear Review
 
-A self-hosted GitHub App that reviews every pull request with **Alibaba Open Code Review (OCR)** running **DeepSeek V4 Flash** through **OpenCode Go**, publishing **GitHub-native inline comments, a sticky summary, and a Check Run**.
+A self-hosted GitHub App that gives every pull request an independent AI review
+through [Alibaba Open Code Review (OCR)](https://github.com/alibaba/opencode-review)
+and an OpenAI-compatible LLM endpoint. It publishes native GitHub inline
+comments, a sticky summary, and a Check Run.
 
-Swear Review is an **independent second opinion** — no matter whether the code was written by a human, Cursor, Codex, Claude Code, or OpenCode, a completely separate pipeline re-checks it.
+Swear Review is deliberately a thin product layer:
 
+```text
+GitHub PR webhook
+      │
+      ▼
+checkout → queue → OCR 1.9.x → findings
+      │                         │
+      └────── GitHub API ◀──────┘
+              │
+              ├─ inline review comments
+              ├─ sticky summary comment
+              └─ Swear Review Check Run
 ```
-Coding Agent / Human ──push──▶ GitHub Pull Request
-                                    │
-                                    ▼
-                          Swear Review GitHub App
-                                    │
-                                    ▼
-                       Alibaba Open Code Review (concurrency 16)
-                                    │
-                                    ▼
-                         OpenCode Go · deepseek-v4-flash
-                                    │
-                                    ▼
-              GitHub native review: inline comments + sticky summary + Check Run
-```
 
-## Why this is different
+## Features
 
-- **Target repositories need ZERO configuration.** No GitHub Actions, no `.swear-review.yml`, nothing. The bot is a GitHub App installed on your personal account with **All repositories** access.
-- **Every push re-reviews the entire PR** (full diff from merge-base to head), not just the new commit.
-- **Full compute, deduplicated publication.** OCR recomputes the whole PR every time, but the publication layer never spams duplicate comments (finding fingerprints + location-overlap detection).
-- **Responsibility boundary:** GitHub integration (webhooks, queue, checkout, publication, checks, merge policy) lives here. Review intelligence (file selection, bundling, agent orchestration, finding generation) belongs entirely to OCR. Swear Review is a *thin, reliable product layer*, not another review framework.
+- **Zero target-repository setup** — install the GitHub App; target repositories
+  do not need Actions, a config file, or a dependency.
+- **Full-PR automatic reviews** — every configured PR event reviews the complete
+  merge-base-to-HEAD range.
+- **Native GitHub output** — inline comments, one deduplicated sticky summary,
+  and a Check Run.
+- **Duplicate suppression** — repeated full reviews do not spam the same finding.
+- **Optional merge gates** — `off`, `check`, or `managed` per repository.
+- **Abuse protection** — automatic reviews of external contributors are disabled
+  by default, and manual commands require repository write-level permission.
+- **Docs-only PR support** — OCR's `status: skipped` result is treated as a
+  successful empty review when no selectable files exist.
+- **Fail-closed infrastructure errors** — provider, checkout, OCR, and GitHub
+  publication failures do not become fake successful reviews.
 
 ## Architecture
 
-| Layer | Tech |
+| Layer | Implementation |
 | --- | --- |
-| Runtime | Node.js 24 · TypeScript |
+| Runtime | Node.js 24 + TypeScript |
 | GitHub | `@octokit/app`, `@octokit/webhooks` |
 | HTTP | Fastify |
-| Persistence | SQLite (`node:sqlite`, built-in) |
-| Review engine | `@alibaba-group/open-code-review@1.9.0` (pinned) |
-| LLM | OpenCode Go `https://opencode.ai/zen/go/v1/chat/completions` · `deepseek-v4-flash` |
-| Deployment | Docker |
+| Persistence | SQLite (`node:sqlite`) |
+| Review engine | `@alibaba-group/open-code-review@1.9.0` |
+| Model endpoint | OpenCode Go by default, `deepseek-v4-flash` |
+| Deployment | Docker Compose or a systemd service |
 
-Fixed product decisions (do not change without re-reading the spec):
+The OCR release is pinned because its JSON output is a compatibility boundary.
+The adapter has a real-output contract fixture and must be updated deliberately
+when OCR changes.
 
-- OCR concurrency is **always 16** — no adaptive fallback (16 → 8 → 4 does not exist).
-- OCR/SDK native retry is enabled; Swear Review adds **no outer retry** (no retry amplification).
-- A **Check Run is always created** for every review.
-- Merge gating is **off by default** and optional per repository (`off | check | managed`).
+## Requirements
 
----
+- Node.js 24 or newer
+- Git 2.41 or newer (required by OCR's partial-clone workflow)
+- Docker Engine + Compose (recommended), or Node.js and the OCR CLI
+- A GitHub App with a publicly reachable HTTPS webhook endpoint
+- An OpenAI-compatible LLM endpoint and server-side credential
 
-## 1. Create the GitHub App
+## Quick start with Docker
 
-1. Go to **https://github.com/settings/apps/new** (personal account).
-2. Fill in:
-   - **GitHub App name:** `Swear Review` (slug fallback: `swear-review-ai`, `swear-code-review`)
-   - **Homepage URL:** any (e.g. your GitHub profile)
-   - **Webhook URL:** `https://your-server.example.com/webhooks`
-   - **Webhook secret:** a long random string — save it for later (`GITHUB_WEBHOOK_SECRET`)
-3. **Permissions** (Repository permissions):
+### 1. Create the GitHub App
 
-   | Permission | Access | Why |
-   | --- | --- | --- |
-   | Metadata | **Read** | repo metadata |
-   | Contents | **Read** | clone/fetch code (never modified) |
-   | Pull requests | **Read & write** | PR reviews + inline comments |
-   | Issues | **Read & write** | PR conversation, sticky summary, commands |
-   | Checks | **Read & write** | Check Runs |
-   | Commit statuses | **Read & write** | required-status compatibility |
-   | Administration | **Read & write** | optional managed-gate rulesets only |
+Create an app at <https://github.com/settings/apps/new> with:
 
-4. **Webhook events** — subscribe to:
+**Repository permissions**
 
-   ```
-   pull_request
-   issue_comment
-   check_run
-   installation
-   installation_repositories
-   repository
-   ```
+| Permission | Access | Purpose |
+| --- | --- | --- |
+| Metadata | Read | Repository metadata |
+| Contents | Read | Checkout and inspect source |
+| Pull requests | Read & write | Reviews and inline comments |
+| Issues | Read & write | Conversation commands and summary |
+| Checks | Read & write | Check Runs |
+| Commit statuses | Read & write | Required-status compatibility |
+| Administration | Read & write | Optional `managed` gate rulesets only |
 
-5. **Where can this GitHub App be installed?** → *Any account* (so you can install it on your personal account).
-6. **Create the app.** Download the **private key** (`.pem` file) — it is shown only once.
+**Webhook events**
 
-## 2. Configuration
+- `pull_request`
+- `issue_comment`
+- `check_run`
+- `installation`
+- `installation_repositories`
+- `repository`
 
-Copy the example files:
+Use a long random webhook secret. Download the App's private key once and
+store it outside Git.
+
+### 2. Prepare local configuration
 
 ```bash
 cp .env.example .env
 cp config.example.yaml config.yaml
+# Put the downloaded key at the path configured by GITHUB_APP_PRIVATE_KEY_PATH.
 ```
 
-Edit `.env`:
+Set the values in `.env`:
+
+```dotenv
+GITHUB_APP_ID=123456
+GITHUB_APP_PRIVATE_KEY_PATH=./github-app.private-key.pem
+GITHUB_WEBHOOK_SECRET=replace-with-a-long-random-secret
+OPENCODE_GO_KEY=sk-example-do-not-use
+```
+
+The example values are placeholders. Never commit `.env`, the PEM file, a real
+webhook secret, or an LLM credential.
+
+### 3. Start the service
 
 ```bash
-GITHUB_APP_ID=123456                     # from the app settings page
-GITHUB_APP_PRIVATE_KEY_PATH=./github-app.private-key.pem
-GITHUB_WEBHOOK_SECRET=<the secret from step 1>
-OPENCODE_GO_KEY=sk-opencode-go-...       # https://opencode.ai
+docker compose up -d --build
+curl -fsS http://127.0.0.1:3000/healthz
+curl -fsS http://127.0.0.1:3000/readyz
 ```
 
-All secrets (`GITHUB_APP_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, `OPENCODE_GO_KEY`) live **only** in server env — never in the repo, never in command arguments, never in logs or GitHub comments. The OCR process receives the OpenCode key but **never** the GitHub private key.
+The Compose setup persists `config.yaml` and the SQLite database under `data/`.
+Review workspaces under `/tmp/swear-review` are temporary and cleaned after each
+job.
 
-### Central configuration (`config.yaml`)
+The webhook URL configured in GitHub must route to the service's `/webhooks`
+endpoint. A stable HTTPS endpoint is recommended for production; temporary
+Quick Tunnels are suitable only for local testing.
 
-The only configuration source. Target repositories never need a file. See `config.example.yaml` for the full reference. Highlights:
+## Configuration
+
+`config.yaml` is the central configuration source. Target repositories do not
+need a configuration file.
+
+Important defaults:
 
 ```yaml
 review:
   auto: true
-  review_drafts: false          # drafts: auto off until ready_for_review
+  default_mode: full
+  review_drafts: false
+  triggers:
+    opened: true
+    synchronize: true
+    reopened: true
+    ready_for_review: true
+
 ocr:
   version: "1.9.0"
-  concurrency: 16               # fixed, do not change
+  concurrency: 16       # fixed per deployment; no adaptive fallback
+  timeout_minutes: 10
+  hard_timeout_minutes: 45
+
+publication:
+  deduplicate: true
+  sticky_summary: true
+  comment_batch_size: 50
+
 security:
-  auto_review_external_prs: false   # public repos: trusted collaborators only
+  auto_review_external_prs: false
+
 gate:
-  mode: off                     # off | check | managed
+  mode: off             # off | check | managed
   block_categories: [bug, security]
+  fail_closed_on_review_error: true
+```
+
+`ocr.concurrency` is fixed for each process configuration; the service does not
+silently fall back from 16 to 8 or 4. Smaller deployments may choose a lower
+explicit value after measuring their memory and provider limits.
+
+Repository overrides use the precedence:
+
+```text
+safe defaults < global config < repository glob < exact repository
+```
+
+Example:
+
+```yaml
 repositories:
-  "OWNER/critical-project":
+  "example-org/critical-*":
     gate:
       mode: managed
-  "OWNER/experimental-*":
+  "example-org/experimental-project":
     review:
       auto: false
 ```
 
-Precedence: hardcoded defaults → global config → repository glob → exact repository.
+### Merge gates
 
-## 3. Run it
+- **`off`** — findings are published, the Check Run succeeds, and merging is
+  unaffected. Infrastructure failures still fail the Check Run.
+- **`check`** — configured blocking categories make the Check Run fail. GitHub
+  can enforce it if `Swear Review` is marked as a required check.
+- **`managed`** — the service creates or updates a repository ruleset requiring
+  the Check Run. This needs `Administration: write` and may be unavailable on
+  some GitHub plans.
 
-### Docker (recommended)
+### OCR status `skipped`
 
-```bash
-docker compose up -d --build
-```
+OCR can return `status: skipped` with `Review skipped: no items were selected.`
+when a diff contains no selectable review files, such as a documentation-only
+PR. Swear Review treats that as a successful empty review, publishes the reason
+in the summary and Check Run, and does not block the PR.
 
-The image contains Node 24, Git ≥ 2.41 (Debian Trixie), and OCR v1.9.0. `/data/` (persistent volume) holds `config.yaml` and `swear-review.db`. Review workspaces (`/tmp/swear-review`) are ephemeral and cleaned up after each job.
+## Using the bot
 
-The production image is verified automatically by the **Docker verification** GitHub Actions workflow (`.github/workflows/docker-verify.yml`): it builds from scratch, asserts Git ≥ 2.41 and OCR 1.9.0 inside the image, boots the container with dummy config, and smoke-tests `/healthz` + `/readyz`.
+Automatic reviews run for the configured pull-request events. Each automatic
+review covers the full merge-base-to-HEAD range.
 
-### From source
-
-```bash
-npm install
-npm run build
-node dist/index.js
-```
-
-Requires `ocr` on `$PATH` (or set `OCR_BIN`):
-
-```bash
-npm install -g @alibaba-group/open-code-review@1.9.0
-```
-
-## 4. Install the App
-
-1. Go to your GitHub App's **Install** page (or the app settings → Install App).
-2. Install it on your **personal account**.
-3. Repository access: **All repositories**.
-4. No target repo files are created or required.
-
-## 5. Use it
-
-Push a PR — Swear Review automatically:
-
-1. clones the repo (hooks disabled, blob:none partial clone, fresh per job),
-2. runs `ocr review --from <merge-base> --to <head> --concurrency 16 --format json`,
-3. publishes inline review comments (batches of 50, deduplicated),
-4. upserts the sticky **Swear Review Summary** comment,
-5. creates/completes the **Swear Review** Check Run.
-
-### Manual commands (PR conversation)
+Commands are entered as PR conversation comments:
 
 | Command | Effect |
 | --- | --- |
-| `/swear-review` or `/swear-review full` | Full PR review |
-| `/swear-review incremental` | Review only `last successful review → HEAD` (falls back to full if no prior review) |
-| `/swear-review status` | Current head / last reviewed / last successful / job status / gate mode / OCR version / model |
+| `/swear-review` | Full PR review |
+| `/swear-review full` | Full PR review |
+| `/swear-review incremental` | Review `last successful review → HEAD`; falls back to full |
+| `/swear-review status` | Show head, review, job, gate, OCR, and model state |
+| `/swear-review help` | Show available commands |
 
-Manual commands require **OWNER / ADMIN / MAINTAIN / WRITE** permission on the repository. Random strangers on public repos cannot burn your quota.
+Manual commands require OWNER, ADMIN, MAINTAIN, or WRITE permission. External
+contributors cannot consume the configured model quota by default.
 
-### Merge gates
+## Deployment and upgrades
 
-- **`off`** (default): findings → comments, Check → success, merging unaffected. Check fails only on infrastructure/model failure.
-- **`check`**: a bug/security finding flips the Check to failure. If you mark `Swear Review` as a required check, merging is blocked. Swear Review does not touch repo settings.
-- **`managed`**: Swear Review creates/updates a repository ruleset (`Swear Review` → required status check on the default branch) automatically. Requires `Administration: write`; on GitHub plans without private-repo rulesets it degrades gracefully (review + check keep working, gate reported as unavailable).
+See **[`docs/deployment.md`](docs/deployment.md)** for:
 
-Example — enable managed gate for one repo:
+- Docker and systemd deployment
+- secret handling and backups
+- OCR upgrades and contract tests
+- safe release/rollback steps
+- health and readiness verification
+- production troubleshooting
 
-```yaml
-repositories:
-  "you/critical-project":
-    gate:
-      mode: managed
-```
-
-## 6. Development
+The short version for an OCR or application release is:
 
 ```bash
-npm run dev        # tsx watch
-npm test           # vitest (unit + integration)
+npm ci
+npm test
 npm run typecheck
 npm run build
+docker compose up -d --build
+curl -fsS http://127.0.0.1:3000/healthz
+curl -fsS http://127.0.0.1:3000/readyz
 ```
 
-Tests include:
+## Development
 
-- unit: command parser, dedup, gate policy, OCR adapter (against a real v1.9.0 capture in `tests/fixtures/ocr-v1.9.0.json`), config precedence, queue superseding;
-- integration: webhook signature validation, and an end-to-end pipeline (webhook → queue → worker → git checkout → OCR (mock binary) → GitHub publication) covering auto review, 16-concurrency invocation, managed gate blocking, gate-off behavior, stale-head discard, OCR failure fail-closed, dedup across pushes, and external-PR abuse protection.
+```bash
+npm ci
+npm test
+npm run typecheck
+npm run build
+npm run dev
+```
 
-The OCR JSON contract is validated by `tests/unit/ocr-adapter.test.ts` against a **real v1.9.0 output capture**. When upgrading OCR, run the contract tests first — an incompatible schema fails loudly rather than publishing garbage.
+The test suite covers command parsing, config precedence, queue superseding,
+deduplication, gate policy, webhook validation, OCR contract parsing, and the
+full webhook → queue → checkout → OCR → publication pipeline.
 
-## 7. Operational endpoints
+When upgrading OCR:
+
+1. Install the candidate OCR version in an isolated environment.
+2. Capture representative JSON for complete, failed, partial, cancelled, and
+   skipped runs.
+3. Update the adapter contract and fixtures.
+4. Run the full test suite and Docker verification workflow.
+5. Only then change the pinned version in `Dockerfile`, `package.json`, and
+   `config.example.yaml`.
+
+## Operational endpoints
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /healthz` | liveness |
-| `GET /readyz` | readiness incl. DB |
-| `GET /metrics` | basic counters (reviews, findings, OCR failures, publish failures, dedup, webhooks) |
+| `GET /healthz` | Process liveness |
+| `GET /readyz` | Readiness, including SQLite availability |
+| `GET /metrics` | Prometheus-style basic counters |
 
-Logs are structured JSON. Each review logs `installation_id`, repo, PR, job id, head SHA, mode, OCR version, model, duration, finding count, exit status. Secrets are redacted by key name.
+Logs are structured JSON. Secrets are redacted by key name and are never
+included in GitHub comments.
 
-## 8. Real-world E2E status
+## Security
 
-**EXECUTED 2026-08-11** — production E2E verified against the real GitHub App
-(`swear-review`, App ID APP_ID_REDACTED) installed on the personal account
-(`repository_selection: all`), the real OpenCode Go credential, and real
-`deepseek-v4-flash` traffic. Full results, OCR-quality observations, and the
-checklist are in [`docs/E2E-CHECKLIST.md`](docs/E2E-CHECKLIST.md).
+Read [`SECURITY.md`](SECURITY.md) before deploying. In particular:
 
-Five real production bugs were found and fixed during the E2E (webhook payload
-shape, git clone auth, OCR partial-clone auth, comment-id bookkeeping, WAL
-durability, dedup policy) — see `git log` for the `fix(e2e)` / `test(e2e)`
-commits. Note: the webhook currently points at an ephemeral Cloudflare quick
-tunnel; replace it with a stable HTTPS endpoint for long-term operation.
+- keep GitHub App private keys, webhook secrets, and LLM credentials in the
+  server environment or a secret manager;
+- do not expose `/webhooks` without HTTPS and the configured HMAC secret;
+- keep `auto_review_external_prs: false` unless you intentionally accept the
+  model-quota and prompt-injection risk;
+- keep the SQLite database and runtime data directory private.
 
-## FAQ / notes
+## E2E verification
 
-- **Why no GitHub Actions?** The bot is a first-class GitHub App; repos need zero setup and the review engine is fully under your control.
-- **What if OCR fails?** The Check Run fails (fail-closed by default), the sticky summary reports the failure, no fake success. Retry with `/swear-review full`.
-- **What if a newer commit lands while a review is running?** The running OCR process is cancelled if possible; if it finishes anyway, its results are discarded (stale-SHA protection) and the Check Run is cancelled. Old queued jobs are superseded.
-- **Can target repos configure anything?** No — Phase 1 deliberately keeps all configuration on the server.
+The reusable acceptance checklist is in
+[`docs/E2E-CHECKLIST.md`](docs/E2E-CHECKLIST.md). It intentionally uses
+placeholders for App IDs, installation IDs, accounts, repositories, and webhook
+URLs so the document can be published safely.
+
+## License
+
+MIT. See [`LICENSE`](LICENSE).

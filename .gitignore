@@ -3,7 +3,12 @@ dist/
 data/
 *.log
 .env
+config.yaml
 .github-app.private-key.pem
+*.pem
+*.db
+*.sqlite
+*.sqlite3
 .DS_Store
 coverage/
 tmp/
