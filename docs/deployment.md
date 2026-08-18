@@ -97,7 +97,8 @@ files outside Git:
 The service unit is versioned at
 [`deploy/swear-review.service`](../deploy/swear-review.service). It runs as the
 non-root `ubuntu` service user, points at the external data directory, and
-includes the Oracle resource limits.
+includes the Oracle resource limits. The Oracle deploy script intentionally
+uses these fixed paths and user; its only argument is the Git ref to deploy.
 
 ### Convert an existing copied deployment
 
