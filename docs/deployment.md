@@ -81,57 +81,73 @@ install -D -m 600 data/swear-review.db \
   "backups/swear-review-$(date -u +%Y%m%dT%H%M%SZ).db"
 ```
 
-## systemd deployment
+## Git-backed systemd deployment (Oracle)
 
-For a non-Docker host, build in a clean checkout and deploy `dist/` plus the
-production dependencies to a versioned application directory. A minimal unit
-looks like this:
+The production checkout is `/opt/swear-review/app`. It must contain only
+versioned application files from the canonical Git remote. Keep these runtime
+files outside Git:
 
-```ini
-[Unit]
-Description=Swear Review GitHub App
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=swear-review
-WorkingDirectory=/opt/swear-review/app
-EnvironmentFile=/etc/swear-review/swear-review.env
-ExecStart=/usr/bin/node /opt/swear-review/app/dist/index.js
-Restart=always
-RestartSec=5
-MemoryMax=3G
-
-[Install]
-WantedBy=multi-user.target
+```text
+/opt/swear-review/data/config.yaml
+/opt/swear-review/data/.env
+/opt/swear-review/data/github-app.pem
+/opt/swear-review/data/swear-review.db
 ```
 
-The environment file should contain only references to the private key path and
-secret values. Store it with owner-only permissions:
+The service unit is versioned at
+[`deploy/swear-review.service`](../deploy/swear-review.service). It points at
+the external data directory and includes the Oracle resource limits.
+
+### Convert an existing copied deployment
+
+Back up the data and keep the old application directory until the new checkout
+passes health checks:
 
 ```bash
-install -o swear-review -g swear-review -m 600 \
-  swear-review.env /etc/swear-review/swear-review.env
+sudo install -d -m 700 /opt/swear-review/backups
+sudo cp -a /opt/swear-review/data \
+  "/opt/swear-review/backups/data-$(date -u +%Y%m%dT%H%M%SZ)"
+sudo mv /opt/swear-review/app \
+  "/opt/swear-review/app-pre-git-$(date -u +%Y%m%dT%H%M%SZ)"
+git clone git@github.com:swear01/swear-review.git /opt/swear-review/app
+sudo chown -R "$(id -un):$(id -gn)" /opt/swear-review/app
+cd /opt/swear-review/app
 ```
 
-A typical release sequence is:
+Use the private repository URL that owns the application; do not use the
+router repository for this checkout. Verify the remote before deploying:
 
 ```bash
-npm ci
-npm test
-npm run typecheck
-npm run build
+git remote -v
+git status --short
+```
 
-# Copy the new dist/ and package runtime dependencies atomically.
-# Keep /var/lib/swear-review (database) and /etc/swear-review (secrets/config)
-# outside the application release directory.
-sudo systemctl restart swear-review
+Then install the unit and run the repository's one-command deployment:
+
+```bash
+sudo install -m 0644 deploy/swear-review.service \
+  /etc/systemd/system/swear-review.service
+./scripts/deploy-oracle.sh main
+```
+
+`scripts/deploy-oracle.sh` refuses dirty or unexpected untracked checkouts,
+fetches the requested ref, installs dependencies, runs tests/typecheck/build,
+installs the unit, runs `daemon-reload`, restarts the service, and verifies
+`/healthz` and `/readyz`. Do not hand-edit the production checkout or use
+`rsync` for routine releases.
+
+The environment file contains the secret values and must remain owner-only:
+
+```bash
+sudo chmod 600 /opt/swear-review/data/.env /opt/swear-review/data/github-app.pem
+sudo systemctl is-enabled swear-review
 sudo systemctl is-active swear-review
-curl -fsS http://127.0.0.1:3000/healthz
-curl -fsS http://127.0.0.1:3000/readyz
-journalctl -u swear-review --since '2 minutes ago' --no-pager
+sudo journalctl -u swear-review --since '2 minutes ago' --no-pager
 ```
+
+For rollback, keep the previous Git commit or release tag and run the same
+script with that ref after confirming the database schema is compatible. Never
+restore the database merely because application code was rolled back.
 
 If several machines share a home or release directory (for example through
 NFS), the binary is shared but each machine has its own process. Update the file

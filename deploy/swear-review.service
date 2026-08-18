@@ -1,0 +1,22 @@
+[Unit]
+Description=Swear Review GitHub App
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/swear-review/app
+EnvironmentFile=/opt/swear-review/data/.env
+ExecStart=/usr/local/bin/node dist/index.js
+Restart=always
+RestartSec=5
+
+# Oracle resource limits: keep a full review from starving the host.
+MemoryHigh=2G
+MemoryMax=3G
+MemorySwapMax=0
+CPUQuota=100%
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target
