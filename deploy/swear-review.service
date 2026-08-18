@@ -5,6 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+User=ubuntu
+Group=ubuntu
 WorkingDirectory=/opt/swear-review/app
 EnvironmentFile=/opt/swear-review/data/.env
 ExecStart=/usr/local/bin/node dist/index.js

@@ -95,8 +95,9 @@ files outside Git:
 ```
 
 The service unit is versioned at
-[`deploy/swear-review.service`](../deploy/swear-review.service). It points at
-the external data directory and includes the Oracle resource limits.
+[`deploy/swear-review.service`](../deploy/swear-review.service). It runs as the
+non-root `ubuntu` service user, points at the external data directory, and
+includes the Oracle resource limits.
 
 ### Convert an existing copied deployment
 
@@ -136,7 +137,8 @@ installs the unit, runs `daemon-reload`, restarts the service, and verifies
 `/healthz` and `/readyz`. Do not hand-edit the production checkout or use
 `rsync` for routine releases.
 
-The environment file contains the secret values and must remain owner-only:
+The environment file contains the secret values and must remain owner-only.
+The deployment script enforces the modes on every release:
 
 ```bash
 sudo chmod 600 /opt/swear-review/data/.env /opt/swear-review/data/github-app.pem
@@ -146,8 +148,10 @@ sudo journalctl -u swear-review --since '2 minutes ago' --no-pager
 ```
 
 For rollback, keep the previous Git commit or release tag and run the same
-script with that ref after confirming the database schema is compatible. Never
-restore the database merely because application code was rolled back.
+script with that ref; the script checks out the fetched object detached, so
+branches, tags, and commit-like refs use the same path. Confirm the database
+schema is compatible first. Never restore the database merely because
+application code was rolled back.
 
 If several machines share a home or release directory (for example through
 NFS), the binary is shared but each machine has its own process. Update the file
