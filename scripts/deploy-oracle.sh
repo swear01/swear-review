@@ -6,12 +6,34 @@ DATA_DIR=${DATA_DIR:-/opt/swear-review/data}
 SERVICE=${SERVICE:-swear-review.service}
 REF=${1:-main}
 
-[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]]
+if [[ ! "$REF" =~ ^[A-Za-z0-9._/-]+$ ]]; then
+  echo "invalid ref: $REF" >&2
+  exit 2
+fi
 cd "$APP_DIR"
 git remote get-url origin >/dev/null
 git diff --quiet
 git diff --cached --quiet
 [[ -z "$(git ls-files --others --exclude-standard)" ]]
+
+for file in "$DATA_DIR/.env" "$DATA_DIR/github-app.pem"; do
+  if [[ ! -f "$file" ]]; then
+    echo "missing runtime secret file: $file" >&2
+    exit 1
+  fi
+done
+sudo chmod 600 "$DATA_DIR/.env" "$DATA_DIR/github-app.pem"
+
+PREV=$(git rev-parse HEAD)
+on_exit() {
+  local rc=$?
+  if (( rc != 0 )); then
+    printf 'deploy failed; rollback with: APP_DIR=%q DATA_DIR=%q %q %q\n' \
+      "$APP_DIR" "$DATA_DIR" "$0" "$PREV" >&2
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
 
 git fetch --prune origin "$REF"
 git checkout --detach FETCH_HEAD
@@ -24,7 +46,6 @@ if [[ -f deploy/swear-review.service ]]; then
   sudo install -m 0644 deploy/swear-review.service \
     "/etc/systemd/system/$SERVICE"
 fi
-sudo chmod 600 "$DATA_DIR/.env" "$DATA_DIR/github-app.pem"
 sudo systemctl daemon-reload
 sudo systemctl restart "$SERVICE"
 sudo systemctl is-active --quiet "$SERVICE"
