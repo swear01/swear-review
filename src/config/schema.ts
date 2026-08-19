@@ -12,11 +12,11 @@ const GateProviderSchema = z
   .object({
     name: z.string().trim().min(1),
     type: z.enum(['check', 'status']).default('check'),
-    check_name: z.string().min(1).optional(),
-    context: z.string().min(1).optional(),
+    check_name: z.string().trim().min(1).optional(),
+    context: z.string().trim().min(1).optional(),
     app_id: z.number().int().positive().optional(),
-    app_slug: z.string().min(1).optional(),
-    creator_login: z.string().min(1).optional(),
+    app_slug: z.string().trim().min(1).optional(),
+    creator_login: z.string().trim().min(1).optional(),
   })
   .strict()
   .superRefine((provider, ctx) => {
@@ -137,7 +137,7 @@ const GateConfigSchema = z
     block_categories: z.array(z.string()).default(() => ['bug', 'security']),
     fail_closed_on_review_error: z.boolean().default(true),
     strategy: GateStrategySchema.default('single'),
-    check_name: z.string().min(1).default('AI Review Gate'),
+    check_name: z.string().trim().min(1).default('AI Review Gate'),
     integration_id: z.number().int().positive().optional(),
     providers: GateProvidersSchema.default(() => []),
   })
@@ -157,7 +157,7 @@ const RepoOverrideSchema = z.object({
   gate: z.object({
     mode: GateModeSchema.optional(),
     strategy: GateStrategySchema.optional(),
-    check_name: z.string().min(1).optional(),
+    check_name: z.string().trim().min(1).optional(),
     integration_id: z.number().int().positive().optional(),
     providers: GateProvidersSchema.optional(),
   }).optional(),
@@ -168,8 +168,8 @@ const AppConfigSchema = z
   .object({
     app: z
       .object({
-        name: z.string().default('Swear Review'),
-        check_name: z.string().default('Swear Review'),
+        name: z.string().trim().min(1).default('Swear Review'),
+        check_name: z.string().trim().min(1).default('Swear Review'),
       })
       .default({ name: 'Swear Review', check_name: 'Swear Review' }),
     review: ReviewConfigSchema,
@@ -181,9 +181,9 @@ const AppConfigSchema = z
     gate: GateConfigSchema,
     repositories: z.record(z.string(), RepoOverrideSchema).default({}),
   })
-  .default({
+  .default(() => ({
     app: { name: 'Swear Review', check_name: 'Swear Review' },
-    review: { auto: true, default_mode: 'full', review_drafts: false, triggers: { ...TRIGGER_DEFAULTS } },
+    review: { auto: true, default_mode: 'full' as const, review_drafts: false, triggers: { ...TRIGGER_DEFAULTS } },
     ocr: { version: '1.9.0', concurrency: 16, binary: 'ocr', timeout_minutes: 10, hard_timeout_minutes: 45, extra_env: {} },
     llm: { url: 'https://opencode.ai/zen/go/v1/chat/completions', model: 'deepseek-v4-flash', use_anthropic: false },
     publication: { deduplicate: true, sticky_summary: true, comment_batch_size: 50 },
@@ -191,7 +191,7 @@ const AppConfigSchema = z
     security: { auto_review_external_prs: false },
     gate: gateDefaults(),
     repositories: {},
-  });
+  }));
 
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 export type RepoOverride = z.infer<typeof RepoOverrideSchema>;

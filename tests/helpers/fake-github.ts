@@ -50,6 +50,8 @@ export class FakeGitHubApi implements GitHubApi {
   commitStatuses: Array<{ context: string; state: string; sha?: string; updated_at?: string; creator?: { login?: string } }> = [];
   rulesets: Array<{ id: number; name: string }> = [];
   rulesetCreateError: Error | null = null;
+  checksUpdateError: Error | null = null;
+  checksUpdateErrorForId: number | null = null;
   /** repo-level review comments (mirrors GET /pulls/{n}/comments) */
   reviewComments: Array<{ id: number; review_id: number; path: string; line: number | null; start_line: number | null; original_line: number | null }> = [];
 
@@ -142,15 +144,16 @@ export class FakeGitHubApi implements GitHubApi {
             return { data: { id } };
           }),
           update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
+            if (self.checksUpdateError && (self.checksUpdateErrorForId === null || self.checksUpdateErrorForId === Number(p.check_run_id))) throw self.checksUpdateError;
             const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
             if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
-            run.status = String(p.status);
+            if (p.status !== undefined) run.status = String(p.status);
             if (p.conclusion !== undefined) {
               run.conclusion = p.conclusion as string | null;
             } else if (p.status === 'in_progress') {
               run.conclusion = null;
             }
-            if (p.completed_at !== undefined) run.completed_at = p.completed_at == null ? null : String(p.completed_at);
+            if (p.completed_at !== undefined) run.completed_at = p.completed_at === null ? null : String(p.completed_at);
             return { data: {} };
           }),
           listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {

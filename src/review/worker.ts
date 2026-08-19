@@ -232,14 +232,7 @@ export class Worker {
 
       if (resolved.gate.mode === 'managed' && resolved.gate.strategy !== 'any') {
         // Ruleset reconciliation must never kill the review.
-        await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
-          installationId: job.installation_id,
-          owner: job.repo_owner,
-          repo: job.repo_name,
-          gateMode: resolved.gate.mode,
-          checkName: resolved.app.check_name,
-          integrationId: resolved.gate.integration_id,
-        }).catch((err) => log.warn({ err: (err as Error).message }, 'managed gate reconciliation failed (degraded)'));
+        await this.reconcileManagedGate(job, resolved, log, resolved.app.check_name);
       }
 
       // ---- publish -----------------------------------------------------------
@@ -285,8 +278,6 @@ export class Worker {
           }),
         },
       });
-      await this.reconcileAnyProviderGate(job, resolved, log);
-
       this.ctx.db.completeRun(runId, 'completed', publish.totalFindings, null, {
         ocrVersion: ocr.ocrVersion ?? resolved.ocr.version,
         model: ocr.model ?? resolved.llm.model,
@@ -294,6 +285,7 @@ export class Worker {
       this.ctx.db.setJobStatus(job.id, 'completed', { finished: true });
       this.ctx.db.setPullRequestReviewed(job.repo_owner, job.repo_name, job.pr_number, job.head_sha, job.mode, true);
       this.ctx.db.setRepositoryReviewed(job.repo_owner, job.repo_name, job.head_sha, job.mode, true);
+      void this.reconcileAnyProviderGate(job, resolved, log);
 
       this.ctx.metrics.reviewsSuccess.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
       this.ctx.metrics.reviewDurationSeconds.observe(durationSec, { repo: `${job.repo_owner}/${job.repo_name}` });
@@ -391,19 +383,27 @@ export class Worker {
       log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
     }
 
-    if (resolved.gate.mode === 'managed') {
-      try {
-        await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
-          installationId: job.installation_id,
-          owner: job.repo_owner,
-          repo: job.repo_name,
-          gateMode: resolved.gate.mode,
-          checkName: resolved.gate.check_name,
-          integrationId: resolved.gate.integration_id,
-        });
-      } catch (gateErr) {
-        log.warn({ err: (gateErr as Error).message }, 'managed gate refresh failed');
-      }
+    await this.reconcileManagedGate(job, resolved, log, resolved.gate.check_name);
+  }
+
+  private async reconcileManagedGate(
+    job: JobRecord,
+    resolved: ReturnType<typeof resolveRepoConfig>,
+    log: Logger,
+    checkName: string,
+  ): Promise<void> {
+    if (resolved.gate.mode !== 'managed') return;
+    try {
+      await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
+        installationId: job.installation_id,
+        owner: job.repo_owner,
+        repo: job.repo_name,
+        gateMode: resolved.gate.mode,
+        checkName,
+        integrationId: resolved.gate.integration_id,
+      });
+    } catch (gateErr) {
+      log.warn({ err: (gateErr as Error).message }, 'managed gate refresh failed');
     }
   }
 
@@ -443,8 +443,8 @@ export class Worker {
         /* best-effort */
       }
     }
-    await this.reconcileAnyProviderGate(job, resolved, log);
     this.ctx.db.setJobStatus(job.id, 'failed', { finished: true });
+    void this.reconcileAnyProviderGate(job, resolved, log);
     this.ctx.metrics.reviewsFailed.inc({ repo: `${job.repo_owner}/${job.repo_name}`, kind });
     log.error(
       { exit_status: 'failure', duration: Math.round(duration), kind, err: err.message.slice(0, 500) },

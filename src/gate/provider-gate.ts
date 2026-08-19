@@ -116,32 +116,48 @@ export async function reconcileProviderGate(
 
     let completedCheckRun = false;
     try {
-      if (decision.status === 'completed') {
-        await retryGateApi(
-          () => completeCheckRun(octokit, log, {
+      let applied = false;
+      for (let attempt = 0; attempt < 2 && !applied; attempt++) {
+        try {
+          if (decision.status === 'completed') {
+            await completeCheckRun(octokit, log, {
+              owner: input.owner,
+              repo: input.repo,
+              checkRunId,
+              conclusion: decision.conclusion,
+              output,
+              throwOnError: true,
+            });
+            completedCheckRun = true;
+          } else {
+            await octokit.rest.checks.update({
+              owner: input.owner,
+              repo: input.repo,
+              check_run_id: checkRunId,
+              status: 'in_progress',
+              output,
+            });
+          }
+          applied = true;
+        } catch (err) {
+          if (attempt > 0) throw err;
+          const current = await findCheckRun(octokit, input.owner, input.repo, input.headSha, checkRunId).catch(() => undefined);
+          if (!current || current.status !== 'completed') throw err;
+          if (decision.status === 'completed' && current.conclusion === decision.conclusion) {
+            completedCheckRun = true;
+            applied = true;
+            continue;
+          }
+          checkRunId = await createCheckRun(octokit, log, {
             owner: input.owner,
             repo: input.repo,
-            checkRunId,
-            conclusion: decision.conclusion,
+            headSha: input.headSha,
+            name: input.checkName,
             output,
-            throwOnError: true,
-          }),
-          log,
-          'complete provider gate',
-        );
-        completedCheckRun = true;
-      } else {
-        await retryGateApi(
-          () => octokit.rest.checks.update({
-            owner: input.owner,
-            repo: input.repo,
-            check_run_id: checkRunId,
-            status: 'in_progress',
-            output,
-          }).then(() => undefined),
-          log,
-          'update provider gate',
-        );
+          });
+          createdCheckRun = true;
+          db.setReviewGate(input.owner, input.repo, input.prNumber, input.headSha, checkRunId, { status: 'in_progress', conclusion: null });
+        }
       }
 
       db.setReviewGate(
@@ -210,6 +226,11 @@ function buildGateOutput(
   };
 }
 
+function isRetryableGateError(error: unknown): boolean {
+  const status = (error as { status?: unknown }).status;
+  return status === undefined || status === 408 || status === 425 || status === 429 || (typeof status === 'number' && status >= 500);
+}
+
 async function retryGateApi<T>(operation: () => Promise<T>, log: Logger, description: string, attempts = 3): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -217,7 +238,7 @@ async function retryGateApi<T>(operation: () => Promise<T>, log: Logger, descrip
       return await operation();
     } catch (err) {
       lastError = err;
-      if (attempt === attempts) break;
+      if (attempt === attempts || !isRetryableGateError(err)) break;
       log.warn({ attempt, err: (err as Error).message, description }, 'retrying provider gate GitHub API call');
       await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
     }
@@ -234,20 +255,36 @@ async function listCheckRuns(
   headSha: string,
 ): Promise<CheckRunObservation[]> {
   const runs: CheckRunObservation[] = [];
-  for (let page = 1; page <= MAX_PROVIDER_PAGES; page++) {
+  for (let page = 1; page <= MAX_PROVIDER_PAGES + 1; page++) {
     const response = await octokit.rest.checks.listForRef({ owner, repo, ref: headSha, filter: 'all', per_page: 100, page });
-    runs.push(...response.data.check_runs.map((run) => ({
-      id: Number(run.id),
-      name: run.name,
-      status: run.status,
-      conclusion: run.conclusion,
-      app: run.app,
-      started_at: run.started_at,
-      completed_at: run.completed_at,
-    })));
-    if (response.data.check_runs.length < 100) return runs;
+    const pageRuns = response.data.check_runs;
+    if (page <= MAX_PROVIDER_PAGES) {
+      runs.push(...pageRuns.map((run) => ({
+        id: Number(run.id),
+        name: run.name,
+        status: run.status,
+        conclusion: run.conclusion,
+        app: run.app,
+        started_at: run.started_at,
+        completed_at: run.completed_at,
+      })));
+    }
+    if (pageRuns.length < 100) {
+      if (page <= MAX_PROVIDER_PAGES || pageRuns.length === 0) return runs;
+      break;
+    }
   }
   throw new Error(`provider check runs exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
+}
+
+async function findCheckRun(
+  octokit: InstallationOctokit,
+  owner: string,
+  repo: string,
+  headSha: string,
+  checkRunId: number,
+): Promise<CheckRunObservation | undefined> {
+  return (await listCheckRuns(octokit, owner, repo, headSha)).find((run) => run.id === checkRunId);
 }
 
 async function listCommitStatuses(
@@ -257,15 +294,21 @@ async function listCommitStatuses(
   headSha: string,
 ): Promise<CommitStatusObservation[]> {
   const statuses: CommitStatusObservation[] = [];
-  for (let page = 1; page <= MAX_PROVIDER_PAGES; page++) {
+  for (let page = 1; page <= MAX_PROVIDER_PAGES + 1; page++) {
     const response = await octokit.rest.repos.listCommitStatusesForRef({ owner, repo, ref: headSha, per_page: 100, page });
-    statuses.push(...response.data.map((status) => ({
-      context: status.context,
-      state: status.state,
-      updated_at: status.updated_at,
-      creator: status.creator,
-    })));
-    if (response.data.length < 100) return statuses;
+    const pageStatuses = response.data;
+    if (page <= MAX_PROVIDER_PAGES) {
+      statuses.push(...pageStatuses.map((status) => ({
+        context: status.context,
+        state: status.state,
+        updated_at: status.updated_at,
+        creator: status.creator,
+      })));
+    }
+    if (pageStatuses.length < 100) {
+      if (page <= MAX_PROVIDER_PAGES || pageStatuses.length === 0) return statuses;
+      break;
+    }
   }
   throw new Error(`provider commit statuses exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
 }

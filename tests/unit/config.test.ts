@@ -63,6 +63,26 @@ gate:
 `)).toThrow();
   });
 
+  it('trims provider and gate matching strings', () => {
+    const c = parseConfig(`
+gate:
+  check_name: ' AI Review Gate '
+  strategy: any
+  providers:
+    - name: ' Cursor '
+      type: check
+      check_name: ' Cursor Bugbot '
+      app_slug: ' cursor '
+    - name: ' Status '
+      type: status
+      context: ' CI '
+      creator_login: ' github-actions[bot] '
+`);
+    expect(c.gate.check_name).toBe('AI Review Gate');
+    expect(c.gate.providers[0]).toMatchObject({ name: 'Cursor', check_name: 'Cursor Bugbot', app_slug: 'cursor' });
+    expect(c.gate.providers[1]).toMatchObject({ name: 'Status', context: 'CI', creator_login: 'github-actions[bot]' });
+  });
+
   it('rejects unknown provider fields', () => {
     expect(() => parseConfig(`
  gate:

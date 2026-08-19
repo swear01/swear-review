@@ -35,6 +35,90 @@ describe('reconcileProviderGate', () => {
     }
   });
 
+  it('does not retry a permanent check update failure', async () => {
+    const github = new FakeGitHubApi();
+    github.checksUpdateError = Object.assign(new Error('unprocessable'), { status: 422 });
+    const db = new Database(':memory:');
+    try {
+      const octokit = await github.getOctokit(1);
+      await expect(reconcileProviderGate(octokit, db, log, {
+        owner: 'owner',
+        repo: 'repo',
+        prNumber: 7,
+        headSha: 'head-a',
+        checkName: 'AI Review Gate',
+        providers: [{ name: 'Cursor Bugbot', type: 'check', check_name: 'Cursor Bugbot', app_id: 1210556 }],
+      })).rejects.toThrow('unprocessable');
+      expect(github.callsTo('checks.update')).toHaveLength(1);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('recovers when an existing gate run was completed externally', async () => {
+    const github = new FakeGitHubApi();
+    const db = new Database(':memory:');
+    const input = {
+      owner: 'owner',
+      repo: 'repo',
+      prNumber: 7,
+      headSha: 'head-a',
+      checkName: 'AI Review Gate',
+      providers: [{ name: 'Cursor Bugbot', type: 'check' as const, check_name: 'Cursor Bugbot', app_id: 1210556 }],
+    };
+    try {
+      const octokit = await github.getOctokit(1);
+      await reconcileProviderGate(octokit, db, log, input);
+      const gateRun = github.checkRuns.find((run) => run.name === 'AI Review Gate')!;
+      gateRun.status = 'completed';
+      gateRun.conclusion = 'success';
+      github.checkRuns.push({
+        name: 'Cursor Bugbot',
+        status: 'completed',
+        conclusion: 'success',
+        head_sha: 'head-a',
+        app: { id: 1210556, slug: 'cursor' },
+      });
+      github.checksUpdateError = Object.assign(new Error('already completed'), { status: 422 });
+      github.checksUpdateErrorForId = gateRun.id!;
+
+      await reconcileProviderGate(octokit, db, log, input);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: gateRun.id,
+        status: 'completed',
+        conclusion: 'success',
+      });
+    } finally {
+      db.close();
+    }
+  });
+
+  it('accepts exactly the provider pagination limit', async () => {
+    const github = new FakeGitHubApi();
+    github.checkRuns = Array.from({ length: 1000 }, (_, index) => ({
+      id: index + 1,
+      name: `unrelated-${index}`,
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: 'head-a',
+    }));
+    const db = new Database(':memory:');
+    try {
+      const octokit = await github.getOctokit(1);
+      await reconcileProviderGate(octokit, db, log, {
+        owner: 'owner',
+        repo: 'repo',
+        prNumber: 7,
+        headSha: 'head-a',
+        checkName: 'AI Review Gate',
+        providers: [{ name: 'Cursor Bugbot', type: 'check', check_name: 'Cursor Bugbot', app_id: 1210556 }],
+      });
+      expect(github.callsTo('checks.listForRef')).toHaveLength(11);
+    } finally {
+      db.close();
+    }
+  });
+
   it('recreates the gate check run after a completed result becomes pending again', async () => {
     const github = new FakeGitHubApi();
     const db = new Database(':memory:');

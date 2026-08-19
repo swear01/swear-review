@@ -264,6 +264,8 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       });
 
       await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 30)?.status === 'completed', 30_000);
+      await waitFor(() => github.callsTo('checks.update').some((call) => call.params.conclusion === 'success'), 30_000);
+      await waitFor(() => github.callsTo('repos.createRepoRuleset').length > 0, 30_000);
       const gateCreate = github.callsTo('checks.create').find((call) => call.params.name === 'AI Review Gate');
       expect(gateCreate).toBeTruthy();
       const gateUpdate = github.callsTo('checks.update').find((call) => call.params.conclusion === 'success');
