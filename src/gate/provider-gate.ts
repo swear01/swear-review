@@ -190,7 +190,7 @@ export async function reconcileProviderGate(
           : { status: 'in_progress', conclusion: null },
       );
     } catch (err) {
-      if (createdCheckRun && decision.status === 'completed' && !completedCheckRun) {
+      if (createdCheckRun && !completedCheckRun) {
         await completeCheckRun(octokit, log, {
           owner: input.owner,
           repo: input.repo,

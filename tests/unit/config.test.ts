@@ -126,6 +126,19 @@ gate:
       check_name: cursor bugbot
       app_slug: cursor
 `)).toThrow();
+    expect(() => parseConfig(`
+gate:
+  strategy: any
+  providers:
+    - name: By ID
+      type: check
+      check_name: Cursor Bugbot
+      app_id: 1210556
+    - name: By slug
+      type: check
+      check_name: Cursor Bugbot
+      app_slug: cursor
+`)).toThrow();
   });
 
   it('parses an any-provider gate', () => {

@@ -55,7 +55,7 @@ describe('reconcileProviderGate', () => {
     })).rejects.toThrow('conclusion');
   });
 
-  it('does not retry a permanent check update failure', async () => {
+  it('terminates a newly created gate after a permanent update failure', async () => {
     const github = new FakeGitHubApi();
     github.checksUpdateError = Object.assign(new Error('unprocessable'), { status: 422 });
     const db = new Database(':memory:');
@@ -69,7 +69,8 @@ describe('reconcileProviderGate', () => {
         checkName: 'AI Review Gate',
         providers: [{ name: 'Cursor Bugbot', type: 'check', check_name: 'Cursor Bugbot', app_id: 1210556 }],
       })).rejects.toThrow('unprocessable');
-      expect(github.callsTo('checks.update')).toHaveLength(1);
+      expect(github.callsTo('checks.update')).toHaveLength(2);
+      expect(github.callsTo('checks.update').map((call) => call.params.check_run_id)).toEqual([1, 1]);
     } finally {
       db.close();
     }

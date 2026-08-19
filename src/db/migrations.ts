@@ -3,6 +3,7 @@
 export const MIGRATIONS: string[] = [
   // v1 — initial schema
   `
+  BEGIN;
   CREATE TABLE IF NOT EXISTS installations (
     id INTEGER PRIMARY KEY,
     account_login TEXT NOT NULL,
@@ -127,10 +128,12 @@ export const MIGRATIONS: string[] = [
     version INTEGER NOT NULL
   );
   INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+  COMMIT;
   `,
 
   // v2 — one-of-many provider gate state
   `
+  BEGIN;
   CREATE TABLE IF NOT EXISTS review_gates (
     repo_owner TEXT NOT NULL,
     repo_name TEXT NOT NULL,
@@ -143,6 +146,7 @@ export const MIGRATIONS: string[] = [
   CREATE INDEX IF NOT EXISTS idx_review_gates_repo_pr ON review_gates(repo_owner, repo_name, pr_number, updated_at);
 
   INSERT OR IGNORE INTO schema_version (version) VALUES (2);
+  COMMIT;
   `,
 
   // v3 — persist provider gate lifecycle state so completed check runs are never reopened

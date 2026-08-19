@@ -36,6 +36,17 @@ const GateProviderSchema = z
 
 export type GateProvider = z.infer<typeof GateProviderSchema>;
 
+function providersOverlap(left: GateProvider, right: GateProvider): boolean {
+  if (left.type !== right.type) return false;
+  if (left.type === 'check' && right.type === 'check') {
+    return left.check_name?.toLowerCase() === right.check_name?.toLowerCase()
+      && (left.app_id === undefined || right.app_id === undefined || left.app_id === right.app_id)
+      && (left.app_slug === undefined || right.app_slug === undefined || left.app_slug.toLowerCase() === right.app_slug.toLowerCase());
+  }
+  return left.context?.toLowerCase() === right.context?.toLowerCase()
+    && (left.creator_login === undefined || right.creator_login === undefined || left.creator_login.toLowerCase() === right.creator_login.toLowerCase());
+}
+
 const GateProvidersSchema = z.array(GateProviderSchema).superRefine((providers, ctx) => {
   const seen = new Set<string>();
   const seenIdentities = new Set<string>();
@@ -49,7 +60,7 @@ const GateProvidersSchema = z.array(GateProviderSchema).superRefine((providers, 
     const identity = provider.type === 'check'
       ? `check:${provider.check_name?.toLowerCase()}:${provider.app_id ?? ''}:${provider.app_slug?.toLowerCase() ?? ''}`
       : `status:${provider.context?.toLowerCase()}:${provider.creator_login?.toLowerCase()}`;
-    if (seenIdentities.has(identity)) {
+    if (seenIdentities.has(identity) || providers.slice(0, index).some((previous) => providersOverlap(previous, provider))) {
       ctx.addIssue({ code: 'custom', path: [index], message: 'provider identities must be unique' });
     }
     seenIdentities.add(identity);
