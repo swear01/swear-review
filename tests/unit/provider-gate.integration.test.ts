@@ -139,6 +139,31 @@ describe('reconcileProviderGate', () => {
     }
   });
 
+  it('rejects provider pagination overflow even with a short extra page', async () => {
+    const github = new FakeGitHubApi();
+    github.checkRuns = Array.from({ length: 1001 }, (_, index) => ({
+      id: index + 1,
+      name: `unrelated-${index}`,
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: 'head-a',
+    }));
+    const db = new Database(':memory:');
+    try {
+      const octokit = await github.getOctokit(1);
+      await expect(reconcileProviderGate(octokit, db, log, {
+        owner: 'owner',
+        repo: 'repo',
+        prNumber: 7,
+        headSha: 'head-a',
+        checkName: 'AI Review Gate',
+        providers: [{ name: 'Cursor Bugbot', type: 'check', check_name: 'Cursor Bugbot', app_id: 1210556 }],
+      })).rejects.toThrow('exceeded 1000');
+    } finally {
+      db.close();
+    }
+  });
+
   it('recreates the gate check run after a completed result becomes pending again', async () => {
     const github = new FakeGitHubApi();
     const db = new Database(':memory:');

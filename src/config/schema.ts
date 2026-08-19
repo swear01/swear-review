@@ -38,12 +38,21 @@ export type GateProvider = z.infer<typeof GateProviderSchema>;
 
 const GateProvidersSchema = z.array(GateProviderSchema).superRefine((providers, ctx) => {
   const seen = new Set<string>();
+  const seenIdentities = new Set<string>();
   for (const [index, provider] of providers.entries()) {
     const normalizedName = provider.name.toLowerCase();
     if (seen.has(normalizedName)) {
       ctx.addIssue({ code: 'custom', path: [index, 'name'], message: 'provider names must be unique' });
     }
     seen.add(normalizedName);
+
+    const identity = provider.type === 'check'
+      ? `check:${provider.check_name?.toLowerCase()}:${provider.app_id ?? ''}:${provider.app_slug?.toLowerCase() ?? ''}`
+      : `status:${provider.context?.toLowerCase()}:${provider.creator_login?.toLowerCase()}`;
+    if (seenIdentities.has(identity)) {
+      ctx.addIssue({ code: 'custom', path: [index], message: 'provider identities must be unique' });
+    }
+    seenIdentities.add(identity);
   }
 });
 
@@ -146,7 +155,7 @@ const GateConfigSchema = z
       ctx.addIssue({ code: 'custom', path: ['providers'], message: 'at least one provider is required for an any-provider gate' });
     }
     gate.providers.forEach((provider, index) => {
-      if (provider.type === 'check' && provider.check_name === gate.check_name) {
+      if (provider.type === 'check' && provider.check_name?.toLowerCase() === gate.check_name.toLowerCase()) {
         ctx.addIssue({ code: 'custom', path: ['providers', index, 'check_name'], message: 'provider check_name must differ from the aggregate gate check_name' });
       }
     });
@@ -192,7 +201,7 @@ const AppConfigSchema = z
       }
       const checkName = gate.check_name ?? config.gate.check_name;
       providers.forEach((provider, index) => {
-        if (provider.type === 'check' && provider.check_name === checkName) {
+        if (provider.type === 'check' && provider.check_name?.toLowerCase() === checkName.toLowerCase()) {
           ctx.addIssue({ code: 'custom', path: ['repositories', pattern, 'gate', 'providers', index, 'check_name'], message: 'provider check_name must differ from the aggregate gate check_name' });
         }
       });

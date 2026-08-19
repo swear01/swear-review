@@ -26,6 +26,15 @@ describe('provider observations', () => {
     }])).toEqual({ name: 'Cursor Bugbot', status: 'passed', detail: 'success' });
   });
 
+  it('matches check names without depending on GitHub casing', () => {
+    expect(observeCheckProvider(checkProvider({ app_id: 1210556 }), [{
+      name: 'cursor bugbot',
+      status: 'completed',
+      conclusion: 'success',
+      app: { id: 1210556, slug: 'cursor' },
+    }])).toEqual({ name: 'Cursor Bugbot', status: 'passed', detail: 'success' });
+  });
+
   it('does not accept a same-named check from another app', () => {
     expect(observeCheckProvider(checkProvider({ app_id: 1210556 }), [{
       name: 'Cursor Bugbot',

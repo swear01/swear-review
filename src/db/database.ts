@@ -32,7 +32,16 @@ export class Database {
       version = (this.db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number }).v;
     }
     for (let i = version; i < MIGRATIONS.length; i++) {
-      this.db.exec(MIGRATIONS[i]!);
+      try {
+        this.db.exec(MIGRATIONS[i]!);
+      } catch (err) {
+        try {
+          this.db.exec('ROLLBACK');
+        } catch {
+          // Ignore rollback errors when the migration did not open a transaction.
+        }
+        throw err;
+      }
     }
   }
 

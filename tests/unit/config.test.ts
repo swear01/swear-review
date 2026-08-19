@@ -112,6 +112,22 @@ gate:
 `)).toThrow();
   });
 
+  it('rejects duplicate provider identities', () => {
+    expect(() => parseConfig(`
+gate:
+  strategy: any
+  providers:
+    - name: Cursor One
+      type: check
+      check_name: Cursor Bugbot
+      app_slug: cursor
+    - name: Cursor Two
+      type: check
+      check_name: cursor bugbot
+      app_slug: cursor
+`)).toThrow();
+  });
+
   it('parses an any-provider gate', () => {
     const c = parseConfig(`
  gate:

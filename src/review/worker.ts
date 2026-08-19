@@ -369,15 +369,19 @@ export class Worker {
 
   private async reconcileAnyProviderGate(job: JobRecord, resolved: ReturnType<typeof resolveRepoConfig>, log: Logger): Promise<void> {
     if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
-    await reconcileProviderGateForPullRequest(this.ctx.github, this.ctx.db, log, {
-      installationId: job.installation_id,
-      owner: job.repo_owner,
-      repo: job.repo_name,
-      prNumber: job.pr_number,
-      headSha: job.head_sha,
-      checkName: resolved.gate.check_name,
-      providers: resolved.gate.providers,
-    });
+    try {
+      await reconcileProviderGateForPullRequest(this.ctx.github, this.ctx.db, log, {
+        installationId: job.installation_id,
+        owner: job.repo_owner,
+        repo: job.repo_name,
+        prNumber: job.pr_number,
+        headSha: job.head_sha,
+        checkName: resolved.gate.check_name,
+        providers: resolved.gate.providers,
+      });
+    } catch (gateErr) {
+      log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
+    }
 
     await this.reconcileManagedGate(job, resolved, log, resolved.gate.check_name);
   }

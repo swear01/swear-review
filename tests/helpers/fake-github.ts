@@ -155,12 +155,13 @@ export class FakeGitHubApi implements GitHubApi {
             const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
             if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
             if (p.status !== undefined) run.status = String(p.status);
-            if (p.conclusion !== undefined) {
-              run.conclusion = p.conclusion as string | null;
-            } else if (p.status === 'in_progress') {
+            if (p.status !== undefined && p.status !== 'completed') {
               run.conclusion = null;
+              run.completed_at = null;
+            } else if (p.status === 'completed') {
+              if (p.conclusion !== undefined) run.conclusion = p.conclusion as string | null;
+              if (p.completed_at !== undefined) run.completed_at = p.completed_at === null ? null : String(p.completed_at);
             }
-            if (p.completed_at !== undefined) run.completed_at = p.completed_at === null ? null : String(p.completed_at);
             return { data: {} };
           }),
           listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {

@@ -26,7 +26,7 @@ export interface CommitStatusObservation {
 export function observeCheckProvider(provider: GateProvider, runs: readonly CheckRunObservation[]): ProviderResult {
   const run = latestMatching(
     runs,
-    (candidate) => candidate.name === provider.check_name
+    (candidate) => candidate.name.toLowerCase() === provider.check_name?.toLowerCase()
       && (provider.app_id === undefined || candidate.app?.id === provider.app_id)
       && (provider.app_slug === undefined || candidate.app?.slug === provider.app_slug),
     (candidate) => candidate.created_at ?? candidate.completed_at ?? candidate.started_at,
@@ -69,12 +69,8 @@ export async function reconcileProviderGateForPullRequest(
     providers: readonly GateProvider[];
   },
 ): Promise<void> {
-  try {
-    const octokit = await github.getOctokit(input.installationId);
-    await reconcileProviderGate(octokit, db, log, input);
-  } catch (err) {
-    log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
-  }
+  const octokit = await github.getOctokit(input.installationId);
+  await reconcileProviderGate(octokit, db, log, input);
 }
 
 export async function reconcileProviderGate(
@@ -296,7 +292,7 @@ async function listCheckRuns(
     }
     if (pageRuns.length < 100) {
       if (page <= MAX_PROVIDER_PAGES || pageRuns.length === 0) return runs;
-      break;
+      throw new Error(`provider check runs exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
     }
   }
   throw new Error(`provider check runs exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
@@ -332,7 +328,7 @@ async function listCommitStatuses(
     }
     if (pageStatuses.length < 100) {
       if (page <= MAX_PROVIDER_PAGES || pageStatuses.length === 0) return statuses;
-      break;
+      throw new Error(`provider commit statuses exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
     }
   }
   throw new Error(`provider commit statuses exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
