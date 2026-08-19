@@ -285,7 +285,7 @@ export class Worker {
       this.ctx.db.setJobStatus(job.id, 'completed', { finished: true });
       this.ctx.db.setPullRequestReviewed(job.repo_owner, job.repo_name, job.pr_number, job.head_sha, job.mode, true);
       this.ctx.db.setRepositoryReviewed(job.repo_owner, job.repo_name, job.head_sha, job.mode, true);
-      void this.reconcileAnyProviderGate(job, resolved, log).catch((err) => log.warn({ err: (err as Error).message }, 'provider gate reconciliation failed'));
+      await this.reconcileAnyProviderGate(job, resolved, log).catch((err) => log.warn({ err: (err as Error).message }, 'provider gate reconciliation failed'));
 
       this.ctx.metrics.reviewsSuccess.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
       this.ctx.metrics.reviewDurationSeconds.observe(durationSec, { repo: `${job.repo_owner}/${job.repo_name}` });
@@ -369,8 +369,8 @@ export class Worker {
 
   private async reconcileAnyProviderGate(job: JobRecord, resolved: ReturnType<typeof resolveRepoConfig>, log: Logger): Promise<void> {
     if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
-    try {
-      await reconcileProviderGateForPullRequest(this.ctx.github, this.ctx.db, log, {
+    await Promise.all([
+      reconcileProviderGateForPullRequest(this.ctx.github, this.ctx.db, log, {
         installationId: job.installation_id,
         owner: job.repo_owner,
         repo: job.repo_name,
@@ -378,12 +378,10 @@ export class Worker {
         headSha: job.head_sha,
         checkName: resolved.gate.check_name,
         providers: resolved.gate.providers,
-      });
-    } catch (gateErr) {
-      log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
-    }
-
-    await this.reconcileManagedGate(job, resolved, log, resolved.gate.check_name);
+      }),
+      // Any-provider managed rulesets require the aggregate gate, not the review check.
+      this.reconcileManagedGate(job, resolved, log, resolved.gate.check_name),
+    ]);
   }
 
   private async reconcileManagedGate(
@@ -444,7 +442,7 @@ export class Worker {
       }
     }
     this.ctx.db.setJobStatus(job.id, 'failed', { finished: true });
-    void this.reconcileAnyProviderGate(job, resolved, log).catch((gateErr) => log.warn({ err: (gateErr as Error).message }, 'provider gate reconciliation failed'));
+    await this.reconcileAnyProviderGate(job, resolved, log).catch((gateErr) => log.warn({ err: (gateErr as Error).message }, 'provider gate reconciliation failed'));
     this.ctx.metrics.reviewsFailed.inc({ repo: `${job.repo_owner}/${job.repo_name}`, kind });
     log.error(
       { exit_status: 'failure', duration: Math.round(duration), kind, err: err.message.slice(0, 500) },
