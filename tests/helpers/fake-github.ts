@@ -35,6 +35,14 @@ export class FakeGitHubApi implements GitHubApi {
   private nextCommentId = 1;
   private nextCheckId = 1;
   private nextRulesetId = 1;
+  checkRuns: Array<{
+    name: string;
+    status: string;
+    conclusion: string | null;
+    head_sha: string;
+    app?: { id?: number; slug?: string } | null;
+  }> = [];
+  commitStatuses: Array<{ context: string; state: string; sha?: string; updated_at?: string; creator?: { login?: string } }> = [];
   rulesets: Array<{ id: number; name: string }> = [];
   rulesetCreateError: Error | null = null;
   /** repo-level review comments (mirrors GET /pulls/{n}/comments) */
@@ -114,8 +122,29 @@ export class FakeGitHubApi implements GitHubApi {
           updateComment: fakeEndpoint('issues.updateComment', (n, p) => self.record(n, p), () => ({ data: { id: self.nextCommentId++ } })),
         },
         checks: {
-          create: fakeEndpoint('checks.create', (n, p) => self.record(n, p), () => ({ data: { id: self.nextCheckId++ } })),
-          update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), () => ({ data: {} })),
+          create: fakeEndpoint('checks.create', (n, p) => self.record(n, p), (p) => {
+            const id = self.nextCheckId++;
+            self.checkRuns.push({
+              name: String(p.name),
+              status: String(p.status),
+              conclusion: null,
+              head_sha: String(p.head_sha),
+            });
+            return { data: { id } };
+          }),
+          update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
+            const run = self.checkRuns.find((r) => r.name === String(p.name));
+            if (run) {
+              run.status = String(p.status);
+              run.conclusion = (p.conclusion as string | null | undefined) ?? run.conclusion;
+            }
+            return { data: {} };
+          }),
+          listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => ({
+            data: {
+              check_runs: self.checkRuns.filter((r) => r.head_sha === String(p.ref)),
+            },
+          })),
         },
         repos: {
           getCollaboratorPermissionLevel: fakeEndpoint('repos.getCollaboratorPermissionLevel', (n, p) => self.record(n, p), () => ({ data: { permission: self.permission } })),
@@ -128,6 +157,9 @@ export class FakeGitHubApi implements GitHubApi {
           }),
           updateRepoRuleset: fakeEndpoint('repos.updateRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
           deleteRepoRuleset: fakeEndpoint('repos.deleteRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
+          listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => ({
+            data: self.commitStatuses.filter((s) => !s.sha || s.sha === String(p.ref)),
+          })),
         },
       },
     };

@@ -6,6 +6,34 @@ import { z } from 'zod';
  */
 
 export const GateModeSchema = z.enum(['off', 'check', 'managed']);
+export const GateStrategySchema = z.enum(['single', 'any']);
+
+const GateProviderSchema = z
+  .object({
+    name: z.string().min(1),
+    type: z.enum(['check', 'status']).default('check'),
+    check_name: z.string().min(1).optional(),
+    context: z.string().min(1).optional(),
+    app_id: z.number().int().positive().optional(),
+    app_slug: z.string().min(1).optional(),
+    creator_login: z.string().min(1).optional(),
+  })
+  .superRefine((provider, ctx) => {
+    if (provider.type === 'check' && !provider.check_name) {
+      ctx.addIssue({ code: 'custom', path: ['check_name'], message: 'check_name is required for check providers' });
+    }
+    if (provider.type === 'check' && !provider.app_id && !provider.app_slug) {
+      ctx.addIssue({ code: 'custom', path: ['app_id'], message: 'app_id or app_slug is required for check providers' });
+    }
+    if (provider.type === 'status' && !provider.context) {
+      ctx.addIssue({ code: 'custom', path: ['context'], message: 'context is required for status providers' });
+    }
+    if (provider.type === 'status' && !provider.creator_login) {
+      ctx.addIssue({ code: 'custom', path: ['creator_login'], message: 'creator_login is required for status providers' });
+    }
+  });
+
+export type GateProvider = z.infer<typeof GateProviderSchema>;
 
 export const TRIGGER_DEFAULTS = {
   opened: true,
@@ -86,11 +114,31 @@ const GateConfigSchema = z
     mode: GateModeSchema.default('off'),
     block_categories: z.array(z.string()).default(['bug', 'security']),
     fail_closed_on_review_error: z.boolean().default(true),
+    strategy: GateStrategySchema.default('single'),
+    check_name: z.string().min(1).default('AI Review Gate'),
+    providers: z.array(GateProviderSchema).default([]),
   })
-  .default({ mode: 'off', block_categories: ['bug', 'security'], fail_closed_on_review_error: true });
+  .superRefine((gate, ctx) => {
+    if (gate.strategy === 'any' && gate.providers.length === 0) {
+      ctx.addIssue({ code: 'custom', path: ['providers'], message: 'at least one provider is required for an any-provider gate' });
+    }
+  })
+  .default({
+    mode: 'off',
+    block_categories: ['bug', 'security'],
+    fail_closed_on_review_error: true,
+    strategy: 'single',
+    check_name: 'AI Review Gate',
+    providers: [],
+  });
 
 const RepoOverrideSchema = z.object({
-  gate: z.object({ mode: GateModeSchema.optional() }).optional(),
+  gate: z.object({
+    mode: GateModeSchema.optional(),
+    strategy: GateStrategySchema.optional(),
+    check_name: z.string().min(1).optional(),
+    providers: z.array(GateProviderSchema).optional(),
+  }).optional(),
   review: z.object({ auto: z.boolean().optional() }).optional(),
 });
 
@@ -119,7 +167,14 @@ const AppConfigSchema = z
     publication: { deduplicate: true, sticky_summary: true, comment_batch_size: 50 },
     workers: { max_review_jobs: 2, poll_interval_ms: 1000, workspace_dir: '/tmp/swear-review', clone_url_template: 'https://github.com/{owner}/{repo}.git', partial_clone: true },
     security: { auto_review_external_prs: false },
-    gate: { mode: 'off', block_categories: ['bug', 'security'], fail_closed_on_review_error: true },
+    gate: {
+      mode: 'off',
+      block_categories: ['bug', 'security'],
+      fail_closed_on_review_error: true,
+      strategy: 'single',
+      check_name: 'AI Review Gate',
+      providers: [],
+    },
     repositories: {},
   });
 

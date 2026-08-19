@@ -3,6 +3,8 @@ import { ReviewQueue } from './queue.js';
 import { resolveRepoConfig } from '../config/load.js';
 import { parseSwearCommand, isAllowedRole } from '../commands/parser.js';
 import { postReply } from '../github/comments.js';
+import { reconcileProviderGate } from '../gate/provider-gate.js';
+import { reconcileGateForRepository } from '../gate/managed-gate.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type WebhookPayload = any;
@@ -27,6 +29,8 @@ export class Scheduler {
         return this.onIssueComment(payload);
       case 'check_run':
         return this.onCheckRun(payload);
+      case 'status':
+        return this.onStatus(payload);
       case 'installation':
         return this.onInstallation(payload);
       case 'installation_repositories':
@@ -98,6 +102,8 @@ export class Scheduler {
       }
     }
 
+    await this.reconcileConfiguredGate({ installationId, owner, repo: name, prNumber, headSha, resolved });
+
     const { jobId, cancelledRunningJobIds } = this.queue.enqueue({
       installationId,
       owner,
@@ -158,6 +164,8 @@ export class Scheduler {
     const headSha: string = pr.data.head.sha;
     const baseSha: string = pr.data.base.sha;
     this.ctx.db.upsertPullRequest(owner, name, prNumber, headSha, baseSha, !!pr.data.draft, pr.data.state);
+    const resolved = resolveRepoConfig(this.ctx.config, owner, name);
+    await this.reconcileConfiguredGate({ installationId, owner, repo: name, prNumber, headSha, resolved });
 
     switch (command.kind) {
       case 'full':
@@ -234,29 +242,102 @@ export class Scheduler {
     }
   }
 
-  // ---- check_run ---------------------------------------------------------------
+  // ---- provider gate events -------------------------------------------------
 
   private async onCheckRun(payload: WebhookPayload): Promise<void> {
-    if (payload.action !== 'rerequested') return;
     const checkRun = payload.check_run;
-    if (!checkRun || checkRun.name !== this.ctx.config.app.check_name) return;
-    const job = this.ctx.db.getJobByCheckRunId(checkRun.id);
-    if (!job) {
-      this.ctx.log.info({ checkRunId: checkRun.id }, 'no job found for re-requested check run');
-      return;
+    if (!checkRun) return;
+
+    if (payload.action === 'rerequested' && checkRun.name === this.ctx.config.app.check_name) {
+      const job = this.ctx.db.getJobByCheckRunId(checkRun.id);
+      if (!job) {
+        this.ctx.log.info({ checkRunId: checkRun.id }, 'no job found for re-requested check run');
+      } else {
+        const { jobId, cancelledRunningJobIds } = this.queue.enqueue({
+          installationId: job.installation_id,
+          owner: job.repo_owner,
+          repo: job.repo_name,
+          prNumber: job.pr_number,
+          baseSha: job.base_sha,
+          headSha: job.head_sha,
+          mode: 'full',
+          trigger: 'check_run.rerequested',
+        });
+        for (const id of cancelledRunningJobIds) this.ctx.worker?.requestCancel(id);
+        this.ctx.log.info({ jobId, repo: `${job.repo_owner}/${job.repo_name}`, pr: job.pr_number }, 're-review enqueued from check run UI');
+      }
     }
-    const { jobId, cancelledRunningJobIds } = this.queue.enqueue({
-      installationId: job.installation_id,
-      owner: job.repo_owner,
-      repo: job.repo_name,
-      prNumber: job.pr_number,
-      baseSha: job.base_sha,
-      headSha: job.head_sha,
-      mode: 'full',
-      trigger: 'check_run.rerequested',
-    });
-    for (const id of cancelledRunningJobIds) this.ctx.worker?.requestCancel(id);
-    this.ctx.log.info({ jobId, repo: `${job.repo_owner}/${job.repo_name}`, pr: job.pr_number }, 're-review enqueued from check run UI');
+
+    if (!['created', 'completed', 'rerequested'].includes(payload.action)) return;
+    const repo = payload.repository;
+    const owner: string = repo?.owner?.login;
+    const name: string = repo?.name;
+    const headSha: string = checkRun.head_sha;
+    if (!owner || !name || !headSha) return;
+
+    const rows = this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha);
+    for (const row of rows) {
+      await this.reconcileConfiguredGate({
+        installationId: row.installation_id,
+        owner,
+        repo: name,
+        prNumber: row.pr_number,
+        headSha,
+        resolved: resolveRepoConfig(this.ctx.config, owner, name),
+      });
+    }
+  }
+
+  private async onStatus(payload: WebhookPayload): Promise<void> {
+    const repo = payload.repository;
+    const owner: string = repo?.owner?.login;
+    const name: string = repo?.name;
+    const headSha: string = payload.sha;
+    if (!owner || !name || !headSha) return;
+
+    for (const row of this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha)) {
+      await this.reconcileConfiguredGate({
+        installationId: row.installation_id,
+        owner,
+        repo: name,
+        prNumber: row.pr_number,
+        headSha,
+        resolved: resolveRepoConfig(this.ctx.config, owner, name),
+      });
+    }
+  }
+
+  private async reconcileConfiguredGate(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    prNumber: number;
+    headSha: string;
+    resolved: ReturnType<typeof resolveRepoConfig>;
+  }): Promise<void> {
+    if (input.resolved.gate.mode === 'off' || input.resolved.gate.strategy !== 'any') return;
+    try {
+      const octokit = await this.ctx.github.getOctokit(input.installationId);
+      await reconcileProviderGate(octokit, this.ctx.db, this.ctx.log, {
+        owner: input.owner,
+        repo: input.repo,
+        prNumber: input.prNumber,
+        headSha: input.headSha,
+        checkName: input.resolved.gate.check_name,
+        providers: input.resolved.gate.providers,
+      });
+      if (input.resolved.gate.mode === 'managed') {
+        await reconcileGateForRepository(this.ctx.github, this.ctx.db, this.ctx.log, {
+          installationId: input.installationId,
+          owner: input.owner,
+          repo: input.repo,
+          gateMode: input.resolved.gate.mode,
+          checkName: input.resolved.gate.check_name,
+        });
+      }
+    } catch (err) {
+      this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
+    }
   }
 
   // ---- installation / repository events ------------------------------------------

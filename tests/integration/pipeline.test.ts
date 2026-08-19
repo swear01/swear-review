@@ -169,6 +169,52 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     }
   });
 
+  it('any-provider gate passes when an external provider succeeds', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    github.checkRuns = [{
+      name: 'Cursor Bugbot',
+      status: 'completed',
+      conclusion: 'success',
+      head_sha: repo.headSha,
+      app: { id: 1210556, slug: 'cursor' },
+    }];
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-any-gate'),
+      cloneTemplate: `file://${repo.bareDir}`,
+      gateMode: 'managed',
+    });
+    config.gate.strategy = 'any';
+    config.gate.providers = [{ name: 'Cursor Bugbot', type: 'check', check_name: 'Cursor Bugbot', app_id: 1210556 }];
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('pull_request', {
+        action: 'opened',
+        number: 30,
+        pull_request: {
+          number: 30, state: 'open', draft: false, title: 'T',
+          user: { login: 'alice' },
+          head: { sha: repo.headSha, ref: 'feature' },
+          base: { sha: repo.baseSha, ref: 'main' },
+        },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+
+      await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 30)?.status === 'completed', 30_000);
+      const gateCreate = github.callsTo('checks.create').find((call) => call.params.name === 'AI Review Gate');
+      expect(gateCreate).toBeTruthy();
+      const gateUpdate = github.callsTo('checks.update').find((call) => call.params.conclusion === 'success');
+      expect(gateUpdate).toBeTruthy();
+      const rules = github.callsTo('repos.createRepoRuleset')[0]!.params.rules as Array<{ type: string; parameters: { required_status_checks: Array<{ context: string }> } }>;
+      expect(rules.some((r) => r.type === 'required_status_checks' && r.parameters.required_status_checks.some((c) => c.context === 'AI Review Gate'))).toBe(true);
+    } finally {
+      harness.cleanup();
+    }
+  });
+
   it('Test I: gate=off → comments posted but check success (merge unaffected)', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;

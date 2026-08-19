@@ -1,6 +1,6 @@
 /** SQLite schema (SQL) and versioned migrations. Uses node:sqlite (built into Node >= 24). */
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export const MIGRATIONS: string[] = [
   // v1 — initial schema
@@ -128,6 +128,22 @@ export const MIGRATIONS: string[] = [
   CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL
   );
-  INSERT OR IGNORE INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+  INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+  `,
+
+  // v2 — one-of-many provider gate state
+  `
+  CREATE TABLE IF NOT EXISTS review_gates (
+    repo_owner TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    check_run_id INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (repo_owner, repo_name, pr_number, head_sha)
+  );
+  CREATE INDEX IF NOT EXISTS idx_review_gates_repo_pr ON review_gates(repo_owner, repo_name, pr_number, updated_at);
+
+  INSERT INTO schema_version (version) VALUES (2);
   `,
 ];

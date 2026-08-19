@@ -55,6 +55,9 @@ export function resolveRepoConfig(config: AppConfig, owner: string, repo: string
   for (const [, override] of matches) {
     if (override.review?.auto !== undefined) result.review.auto = override.review.auto;
     if (override.gate?.mode !== undefined) result.gate.mode = override.gate.mode;
+    if (override.gate?.strategy !== undefined) result.gate.strategy = override.gate.strategy;
+    if (override.gate?.check_name !== undefined) result.gate.check_name = override.gate.check_name;
+    if (override.gate?.providers !== undefined) result.gate.providers = structuredClone(override.gate.providers);
   }
   return result as AppConfig;
 }

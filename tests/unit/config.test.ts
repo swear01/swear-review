@@ -11,6 +11,9 @@ describe('parseConfig', () => {
     expect(c.gate.mode).toBe('off');
     expect(c.gate.block_categories).toEqual(['bug', 'security']);
     expect(c.gate.fail_closed_on_review_error).toBe(true);
+    expect(c.gate.strategy).toBe('single');
+    expect(c.gate.check_name).toBe('AI Review Gate');
+    expect(c.gate.providers).toEqual([]);
     expect(c.workers.max_review_jobs).toBe(2);
     expect(c.publication.comment_batch_size).toBe(50);
     expect(c.security.auto_review_external_prs).toBe(false);
@@ -43,6 +46,48 @@ security:
     expect(c.gate.mode).toBe('check');
     expect(c.gate.block_categories).toEqual(['bug']);
     expect(c.security.auto_review_external_prs).toBe(true);
+  });
+
+  it('rejects an any-provider gate without providers', () => {
+    expect(() => parseConfig('gate:\n  strategy: any')).toThrow();
+  });
+
+  it('rejects a provider without an explicit source', () => {
+    expect(() => parseConfig(`
+gate:
+  strategy: any
+  providers:
+    - name: Unpinned
+      type: check
+      check_name: Unpinned
+`)).toThrow();
+  });
+
+  it('parses an any-provider gate', () => {
+    const c = parseConfig(`
+ gate:
+  mode: managed
+  strategy: any
+  check_name: AI Review Gate
+  providers:
+    - name: Swear Review
+      type: check
+      check_name: Swear Review
+      app_slug: swear-review
+    - name: Cursor Bugbot
+      type: check
+      check_name: Cursor Bugbot
+      app_id: 1210556
+    - name: Gemini Review
+      type: status
+      context: Gemini Review
+      creator_login: github-actions[bot]
+`);
+    expect(c.gate.strategy).toBe('any');
+    expect(c.gate.check_name).toBe('AI Review Gate');
+    expect(c.gate.providers).toHaveLength(3);
+    expect(c.gate.providers[1]!.app_id).toBe(1210556);
+    expect(c.gate.providers[2]!.context).toBe('Gemini Review');
   });
 });
 
@@ -90,5 +135,25 @@ repositories:
       mode: check
 `);
     expect(resolveRepoConfig(c, 'anything', 'repo').gate.mode).toBe('check');
+  });
+
+  it('applies any-provider gate overrides without mutating the base', () => {
+    const c = parseConfig(`
+repositories:
+  "a/b":
+    gate:
+      strategy: any
+      check_name: AI Review Gate
+      providers:
+        - name: Cursor Bugbot
+          type: check
+          check_name: Cursor Bugbot
+          app_id: 1210556
+`);
+    const resolved = resolveRepoConfig(c, 'a', 'b');
+    expect(resolved.gate.strategy).toBe('any');
+    expect(resolved.gate.check_name).toBe('AI Review Gate');
+    expect(resolved.gate.providers[0]!.name).toBe('Cursor Bugbot');
+    expect(c.gate.strategy).toBe('single');
   });
 });

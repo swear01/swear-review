@@ -137,6 +137,41 @@ export class Database {
       .run(owner, name, prNumber, headSha, lastReviewed, lastSuccessful, lastFull, now);
   }
 
+  listOpenPullRequestsByHeadSha(owner: string, name: string, headSha: string): Array<{ pr_number: number; installation_id: number }> {
+    const rows = this.db
+      .prepare(
+        `SELECT p.pr_number, r.installation_id
+         FROM pull_requests p
+         JOIN repositories r ON r.owner = p.repo_owner AND r.name = p.repo_name
+         WHERE p.repo_owner=? AND p.repo_name=? AND p.head_sha=? AND p.state='open'`
+      )
+      .all(owner, name, headSha);
+    return rows as Array<{ pr_number: number; installation_id: number }>;
+  }
+
+  // ---- review gates --------------------------------------------------------
+
+  getReviewGate(owner: string, name: string, prNumber: number, headSha: string): { check_run_id: number } | null {
+    const row = this.db
+      .prepare(
+        `SELECT check_run_id FROM review_gates
+         WHERE repo_owner=? AND repo_name=? AND pr_number=? AND head_sha=?`
+      )
+      .get(owner, name, prNumber, headSha);
+    return (row as { check_run_id: number } | undefined) ?? null;
+  }
+
+  setReviewGate(owner: string, name: string, prNumber: number, headSha: string, checkRunId: number): void {
+    this.db
+      .prepare(
+        `INSERT INTO review_gates (repo_owner, repo_name, pr_number, head_sha, check_run_id, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(repo_owner, repo_name, pr_number, head_sha) DO UPDATE SET
+           check_run_id=excluded.check_run_id, updated_at=excluded.updated_at`
+      )
+      .run(owner, name, prNumber, headSha, checkRunId, new Date().toISOString());
+  }
+
   // ---- repository state ----------------------------------------------------
 
   getRepositoryState(owner: string, name: string): {

@@ -8,6 +8,7 @@ import { parseOcrOutput } from './ocr-adapter.js';
 import { publishReviewResult } from './publisher.js';
 import { computeGateDecision } from '../gate/policy.js';
 import { reconcileGateForRepository } from '../gate/managed-gate.js';
+import { reconcileProviderGate } from '../gate/provider-gate.js';
 import { createCheckRun, completeCheckRun, renderCheckOutputText } from '../github/checks.js';
 import { upsertStickySummary } from '../github/comments.js';
 import { resolveRepoConfig } from '../config/load.js';
@@ -236,7 +237,7 @@ export class Worker {
           owner: job.repo_owner,
           repo: job.repo_name,
           gateMode: resolved.gate.mode,
-          checkName: resolved.app.check_name,
+          checkName: resolved.gate.strategy === 'any' ? resolved.gate.check_name : resolved.app.check_name,
         }).catch((err) => log.warn({ err: (err as Error).message }, 'managed gate reconciliation failed (degraded)'));
       }
 
@@ -283,6 +284,7 @@ export class Worker {
           }),
         },
       });
+      await this.reconcileAnyProviderGate(job, resolved, log);
 
       this.ctx.db.completeRun(runId, 'completed', publish.totalFindings, null, {
         ocrVersion: ocr.ocrVersion ?? resolved.ocr.version,
@@ -372,6 +374,32 @@ export class Worker {
     log.info({}, 'stale review discarded');
   }
 
+  private async reconcileAnyProviderGate(job: JobRecord, resolved: ReturnType<typeof resolveRepoConfig>, log: Logger): Promise<void> {
+    if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
+    try {
+      const octokit = await this.ctx.github.getOctokit(job.installation_id);
+      await reconcileProviderGate(octokit, this.ctx.db, log, {
+        owner: job.repo_owner,
+        repo: job.repo_name,
+        prNumber: job.pr_number,
+        headSha: job.head_sha,
+        checkName: resolved.gate.check_name,
+        providers: resolved.gate.providers,
+      });
+      if (resolved.gate.mode === 'managed') {
+        await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
+          installationId: job.installation_id,
+          owner: job.repo_owner,
+          repo: job.repo_name,
+          gateMode: resolved.gate.mode,
+          checkName: resolved.gate.check_name,
+        });
+      }
+    } catch (gateErr) {
+      log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
+    }
+  }
+
   private async failJob(job: JobRecord, runId: number | null, checkRunId: number | null, err: Error, log: Logger, startedAt: number): Promise<void> {
     const duration = (Date.now() - startedAt) / 1000;
     const kind = err instanceof ReviewError ? err.kind : 'unknown';
@@ -408,6 +436,7 @@ export class Worker {
         /* best-effort */
       }
     }
+    await this.reconcileAnyProviderGate(job, resolved, log);
     this.ctx.db.setJobStatus(job.id, 'failed', { finished: true });
     this.ctx.metrics.reviewsFailed.inc({ repo: `${job.repo_owner}/${job.repo_name}`, kind });
     log.error(
