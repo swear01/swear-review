@@ -120,6 +120,17 @@ gate:
   });
 });
 
+describe('defaultConfig', () => {
+  it('does not share mutable gate defaults between parses', () => {
+    const first = defaultConfig();
+    const second = defaultConfig();
+    first.gate.providers.push({ name: 'One', type: 'check', check_name: 'One', app_slug: 'one' });
+    first.gate.block_categories.push('custom');
+    expect(second.gate.providers).toEqual([]);
+    expect(second.gate.block_categories).toEqual(['bug', 'security']);
+  });
+});
+
 describe('resolveRepoConfig (precedence)', () => {
   const base = defaultConfig();
 
@@ -145,6 +156,32 @@ repositories:
     expect(glob.review.auto).toBe(true);
     const other = resolveRepoConfig(c, 'OWNER', 'sandbox');
     expect(other.gate.mode).toBe('off');
+  });
+
+  it('applies exact overrides after longer wildcard patterns', () => {
+    const c = parseConfig(`
+repositories:
+  "org/repo*":
+    gate:
+      mode: managed
+  "org/repo":
+    gate:
+      mode: check
+`);
+    expect(resolveRepoConfig(c, 'org', 'repo').gate.mode).toBe('check');
+  });
+
+  it('rejects a provider that collides with the aggregate gate check name', () => {
+    expect(() => parseConfig(`
+gate:
+  strategy: any
+  check_name: AI Review Gate
+  providers:
+    - name: Aggregate
+      type: check
+      check_name: AI Review Gate
+      app_slug: example
+`)).toThrow();
   });
 
   it('does not mutate the original config', () => {

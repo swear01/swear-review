@@ -113,6 +113,7 @@ export async function reconcileProviderGate(
 
     if (checkRunId === null) throw new Error('provider gate check run was not created');
 
+    let completedCheckRun = false;
     try {
       if (decision.status === 'completed') {
         await retryGateApi(
@@ -127,6 +128,7 @@ export async function reconcileProviderGate(
           log,
           'complete provider gate',
         );
+        completedCheckRun = true;
       } else {
         await retryGateApi(
           () => octokit.rest.checks.update({
@@ -151,7 +153,7 @@ export async function reconcileProviderGate(
         decision.status === 'completed' ? decision.conclusion : null,
       );
     } catch (err) {
-      if (createdCheckRun && decision.status === 'completed') {
+      if (createdCheckRun && decision.status === 'completed' && !completedCheckRun) {
         await completeCheckRun(octokit, log, {
           owner: input.owner,
           repo: input.repo,
@@ -221,6 +223,8 @@ async function retryGateApi<T>(operation: () => Promise<T>, log: Logger, descrip
   throw lastError;
 }
 
+const MAX_PROVIDER_PAGES = 10;
+
 async function listCheckRuns(
   octokit: InstallationOctokit,
   owner: string,
@@ -228,7 +232,7 @@ async function listCheckRuns(
   headSha: string,
 ): Promise<CheckRunObservation[]> {
   const runs: CheckRunObservation[] = [];
-  for (let page = 1; ; page++) {
+  for (let page = 1; page <= MAX_PROVIDER_PAGES; page++) {
     const response = await octokit.rest.checks.listForRef({ owner, repo, ref: headSha, filter: 'all', per_page: 100, page });
     runs.push(...response.data.check_runs.map((run) => ({
       id: Number(run.id),
@@ -239,9 +243,9 @@ async function listCheckRuns(
       started_at: run.started_at,
       completed_at: run.completed_at,
     })));
-    if (response.data.check_runs.length < 100) break;
+    if (response.data.check_runs.length < 100) return runs;
   }
-  return runs;
+  throw new Error(`provider check runs exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
 }
 
 async function listCommitStatuses(
@@ -251,7 +255,7 @@ async function listCommitStatuses(
   headSha: string,
 ): Promise<CommitStatusObservation[]> {
   const statuses: CommitStatusObservation[] = [];
-  for (let page = 1; ; page++) {
+  for (let page = 1; page <= MAX_PROVIDER_PAGES; page++) {
     const response = await octokit.rest.repos.listCommitStatusesForRef({ owner, repo, ref: headSha, per_page: 100, page });
     statuses.push(...response.data.map((status) => ({
       context: status.context,
@@ -259,9 +263,9 @@ async function listCommitStatuses(
       updated_at: status.updated_at,
       creator: status.creator,
     })));
-    if (response.data.length < 100) break;
+    if (response.data.length < 100) return statuses;
   }
-  return statuses;
+  throw new Error(`provider commit statuses exceeded ${MAX_PROVIDER_PAGES * 100} records for ${headSha}`);
 }
 
 function latestMatching<T>(
@@ -273,8 +277,12 @@ function latestMatching<T>(
   return values
     .filter(matches)
     .sort((a, b) => {
-      const time = String(timestamp(b) ?? '').localeCompare(String(timestamp(a) ?? ''));
-      return time !== 0 ? time : Number(order(b) ?? 0) - Number(order(a) ?? 0);
+      const aOrder = order(a);
+      const bOrder = order(b);
+      if (aOrder !== null && aOrder !== undefined && bOrder !== null && bOrder !== undefined && aOrder !== bOrder) {
+        return bOrder - aOrder;
+      }
+      return String(timestamp(b) ?? '').localeCompare(String(timestamp(a) ?? ''));
     })[0];
 }
 

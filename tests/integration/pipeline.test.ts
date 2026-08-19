@@ -48,6 +48,36 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     }
   });
 
+  it('continues with a payload when head revalidation is temporarily unavailable', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    github.pullsGetError = new Error('temporary GitHub outage');
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-revalidation-error'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('pull_request', {
+        action: 'opened',
+        number: 98,
+        pull_request: {
+          number: 98, state: 'open', draft: false, title: 'T',
+          user: { login: 'alice' },
+          head: { sha: repo.headSha, ref: 'feature' },
+          base: { sha: repo.baseSha, ref: 'main' },
+        },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      expect(harness.db.getLatestJob('test-owner', 'demo', 98)).not.toBeNull();
+    } finally {
+      harness.cleanup();
+    }
+  });
+
   it('Test B: opened PR → auto full review → inline comments + sticky summary + check success', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;

@@ -66,20 +66,27 @@ export class Scheduler {
     const headSha: string = pr.head.sha;
     const baseSha: string = pr.base.sha;
     const draft: boolean = !!pr.draft;
-    const octokit = await this.ctx.github.getOctokit(installationId);
-    let currentPr;
+    let octokit: Awaited<ReturnType<ServiceContext['github']['getOctokit']>> | undefined;
     try {
-      currentPr = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
+      octokit = await this.ctx.github.getOctokit(installationId);
+      const currentPr = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
+      if (currentPr.data.state !== 'open' || currentPr.data.head.sha !== headSha) {
+        this.ctx.log.info(
+          { repo: `${owner}/${name}`, pr: prNumber, eventHeadSha: headSha, currentHeadSha: currentPr.data.head.sha },
+          'ignoring stale pull_request event',
+        );
+        return;
+      }
     } catch (err) {
-      this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'could not revalidate pull request head; ignoring event');
-      return;
-    }
-    if (currentPr.data.state !== 'open' || currentPr.data.head.sha !== headSha) {
-      this.ctx.log.info(
-        { repo: `${owner}/${name}`, pr: prNumber, eventHeadSha: headSha, currentHeadSha: currentPr.data.head.sha },
-        'ignoring stale pull_request event',
-      );
-      return;
+      const existing = this.ctx.db.getPullRequest(owner, name, prNumber);
+      if (existing?.head_sha && existing.head_sha !== headSha) {
+        this.ctx.log.warn(
+          { repo: `${owner}/${name}`, pr: prNumber, eventHeadSha: headSha, storedHeadSha: existing.head_sha },
+          'could not revalidate stale pull_request event; ignoring because a different head is already stored',
+        );
+        return;
+      }
+      this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'could not revalidate pull request head; continuing with payload data');
     }
 
     // Real pull_request payloads may omit installation.account (only id/node_id).
@@ -106,6 +113,12 @@ export class Scheduler {
 
     // Public repo abuse protection: auto review only trusted collaborators.
     if (!repo.private && !resolved.security.auto_review_external_prs) {
+      try {
+        octokit ??= await this.ctx.github.getOctokit(installationId);
+      } catch (err) {
+        this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'could not check PR author permission; skipping auto review');
+        return;
+      }
       const permission = await this.getPermission(octokit, owner, name, pr.user.login);
       if (!isAllowedRole(permission)) {
         this.ctx.log.info(
@@ -280,6 +293,7 @@ export class Scheduler {
         for (const id of cancelledRunningJobIds) this.ctx.worker?.requestCancel(id);
         this.ctx.log.info({ jobId, repo: `${job.repo_owner}/${job.repo_name}`, pr: job.pr_number }, 're-review enqueued from check run UI');
       }
+      return;
     }
 
     if (!['created', 'completed', 'rerequested'].includes(payload.action)) return;

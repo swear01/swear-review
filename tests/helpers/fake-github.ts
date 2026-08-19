@@ -35,6 +35,7 @@ export class FakeGitHubApi implements GitHubApi {
   private nextCommentId = 1;
   private nextCheckId = 1;
   private nextRulesetId = 1;
+  createdCheckApp: { id?: number; slug?: string } | null = null;
   checkRuns: Array<{
     id?: number;
     name: string;
@@ -42,6 +43,9 @@ export class FakeGitHubApi implements GitHubApi {
     conclusion: string | null;
     head_sha: string;
     app?: { id?: number; slug?: string } | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+    created_at?: string | null;
   }> = [];
   commitStatuses: Array<{ context: string; state: string; sha?: string; updated_at?: string; creator?: { login?: string } }> = [];
   rulesets: Array<{ id: number; name: string }> = [];
@@ -131,15 +135,18 @@ export class FakeGitHubApi implements GitHubApi {
               status: String(p.status),
               conclusion: null,
               head_sha: String(p.head_sha),
+              app: self.createdCheckApp,
+              started_at: (p.started_at as string | undefined) ?? null,
+              created_at: new Date().toISOString(),
             });
             return { data: { id } };
           }),
           update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
             const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
-            if (run) {
-              run.status = String(p.status);
-              run.conclusion = (p.conclusion as string | null | undefined) ?? run.conclusion;
-            }
+            if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
+            run.status = String(p.status);
+            run.conclusion = (p.conclusion as string | null | undefined) ?? run.conclusion;
+            if (p.completed_at !== undefined) run.completed_at = String(p.completed_at);
             return { data: {} };
           }),
           listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {

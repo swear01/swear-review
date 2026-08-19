@@ -45,7 +45,12 @@ export function resolveRepoConfig(config: AppConfig, owner: string, repo: string
   const key = `${owner}/${repo}`;
   const matches = Object.entries(config.repositories)
     .filter(([pattern]) => pattern === key || micromatch.isMatch(key, pattern, { dot: true }))
-    .sort(([a], [b]) => a.length - b.length); // broadest first; exact / most specific last
+    .sort(([a], [b]) => {
+      const aExact = a === key;
+      const bExact = b === key;
+      if (aExact !== bExact) return aExact ? 1 : -1;
+      return a.length - b.length;
+    }); // broadest first; exact last
 
   if (matches.length === 0) return config;
 
