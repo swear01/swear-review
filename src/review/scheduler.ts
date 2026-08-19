@@ -3,7 +3,7 @@ import { ReviewQueue } from './queue.js';
 import { resolveRepoConfig } from '../config/load.js';
 import { parseSwearCommand, isAllowedRole } from '../commands/parser.js';
 import { postReply } from '../github/comments.js';
-import { reconcileProviderGate } from '../gate/provider-gate.js';
+import { reconcileProviderGateForPullRequest } from '../gate/provider-gate.js';
 import { reconcileGateForRepository } from '../gate/managed-gate.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -311,20 +311,7 @@ export class Scheduler {
     if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
     if (!resolved.gate.providers.some((provider) => provider.type === 'check' && provider.check_name === checkRun.name)) return;
 
-    const rows = this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha);
-    for (const row of rows) {
-      await this.reconcileConfiguredGate({
-        installationId: row.installation_id,
-        owner,
-        repo: name,
-        prNumber: row.pr_number,
-        headSha,
-        resolved,
-      }, { manageRuleset: false });
-    }
-    if (rows[0]) {
-      await this.reconcileManagedGate({ installationId: rows[0].installation_id, owner, repo: name, resolved });
-    }
+    await this.reconcileForHeadSha({ owner, repo: name, headSha, resolved });
   }
 
   private async onStatus(payload: WebhookPayload): Promise<void> {
@@ -334,24 +321,32 @@ export class Scheduler {
     const headSha: string = payload.sha;
     const context: string = payload.context;
     if (!owner || !name || !headSha || !context) return;
+    if (payload.state === 'pending') return;
 
     const resolved = resolveRepoConfig(this.ctx.config, owner, name);
     if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
     if (!resolved.gate.providers.some((provider) => provider.type === 'status' && provider.context === context)) return;
 
-    const rows = this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha);
-    for (const row of rows) {
-      await this.reconcileConfiguredGate({
-        installationId: row.installation_id,
-        owner,
-        repo: name,
-        prNumber: row.pr_number,
-        headSha,
-        resolved,
-      }, { manageRuleset: false });
-    }
+    await this.reconcileForHeadSha({ owner, repo: name, headSha, resolved });
+  }
+
+  private async reconcileForHeadSha(input: {
+    owner: string;
+    repo: string;
+    headSha: string;
+    resolved: ReturnType<typeof resolveRepoConfig>;
+  }): Promise<void> {
+    const rows = this.ctx.db.listOpenPullRequestsByHeadSha(input.owner, input.repo, input.headSha);
+    await Promise.all(rows.map((row) => this.reconcileConfiguredGate({
+      installationId: row.installation_id,
+      owner: input.owner,
+      repo: input.repo,
+      prNumber: row.pr_number,
+      headSha: input.headSha,
+      resolved: input.resolved,
+    }, { manageRuleset: false })));
     if (rows[0]) {
-      await this.reconcileManagedGate({ installationId: rows[0].installation_id, owner, repo: name, resolved });
+      await this.reconcileManagedGate({ installationId: rows[0].installation_id, owner: input.owner, repo: input.repo, resolved: input.resolved });
     }
   }
 
@@ -368,19 +363,15 @@ export class Scheduler {
   ): Promise<void> {
     if (input.resolved.gate.mode === 'off' || input.resolved.gate.strategy !== 'any') return;
 
-    try {
-      const octokit = await this.ctx.github.getOctokit(input.installationId);
-      await reconcileProviderGate(octokit, this.ctx.db, this.ctx.log, {
-        owner: input.owner,
-        repo: input.repo,
-        prNumber: input.prNumber,
-        headSha: input.headSha,
-        checkName: input.resolved.gate.check_name,
-        providers: input.resolved.gate.providers,
-      });
-    } catch (err) {
-      this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
-    }
+    await reconcileProviderGateForPullRequest(this.ctx.github, this.ctx.db, this.ctx.log, {
+      installationId: input.installationId,
+      owner: input.owner,
+      repo: input.repo,
+      prNumber: input.prNumber,
+      headSha: input.headSha,
+      checkName: input.resolved.gate.check_name,
+      providers: input.resolved.gate.providers,
+    });
 
     if (options.manageRuleset !== false) {
       await this.reconcileManagedGate(input);

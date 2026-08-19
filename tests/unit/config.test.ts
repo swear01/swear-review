@@ -225,14 +225,13 @@ repositories:
     expect(resolveRepoConfig(c, 'anything', 'repo').gate.mode).toBe('check');
   });
 
-  it('rejects an any-provider override without providers', () => {
-    const c = parseConfig(`
+  it('rejects an any-provider override without effective providers at load time', () => {
+    expect(() => parseConfig(`
 repositories:
   a/b:
     gate:
       strategy: any
-`);
-    expect(() => resolveRepoConfig(c, 'a', 'b')).toThrow();
+`)).toThrow();
   });
 
   it('applies any-provider gate overrides without mutating the base', () => {

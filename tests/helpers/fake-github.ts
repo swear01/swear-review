@@ -10,6 +10,12 @@ function fakeEndpoint(endpointName: string, record: (name: string, params: Recor
   };
 }
 
+function pageSlice<T>(values: readonly T[], params: Record<string, unknown>): T[] {
+  const page = Number(params.page ?? 1);
+  const perPage = Number(params.per_page ?? 100);
+  return values.slice((page - 1) * perPage, page * perPage);
+}
+
 /**
  * Fake GitHub API for tests. Records every REST call and returns canned data.
  */
@@ -145,6 +151,7 @@ export class FakeGitHubApi implements GitHubApi {
           }),
           update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
             if (self.checksUpdateError && (self.checksUpdateErrorForId === null || self.checksUpdateErrorForId === Number(p.check_run_id))) throw self.checksUpdateError;
+            if (p.status === 'completed' && p.conclusion === undefined) throw Object.assign(new Error('completed check run requires a conclusion'), { status: 422 });
             const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
             if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
             if (p.status !== undefined) run.status = String(p.status);
@@ -157,10 +164,8 @@ export class FakeGitHubApi implements GitHubApi {
             return { data: {} };
           }),
           listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {
-            const page = Number(p.page ?? 1);
-            const perPage = Number(p.per_page ?? 100);
             const all = self.checkRuns.filter((r) => r.head_sha === String(p.ref));
-            return { data: { check_runs: all.slice((page - 1) * perPage, page * perPage) } };
+            return { data: { check_runs: pageSlice(all, p) } };
           }),
         },
         repos: {
@@ -175,10 +180,8 @@ export class FakeGitHubApi implements GitHubApi {
           updateRepoRuleset: fakeEndpoint('repos.updateRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
           deleteRepoRuleset: fakeEndpoint('repos.deleteRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
           listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => {
-            const page = Number(p.page ?? 1);
-            const perPage = Number(p.per_page ?? 100);
             const all = self.commitStatuses.filter((s) => s.sha === String(p.ref));
-            return { data: all.slice((page - 1) * perPage, page * perPage) };
+            return { data: pageSlice(all, p) };
           }),
         },
       },

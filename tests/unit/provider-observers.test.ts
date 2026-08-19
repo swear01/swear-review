@@ -83,6 +83,14 @@ describe('provider observations', () => {
     });
   });
 
+  it('treats a malformed commit status as pending', () => {
+    expect(observeStatusProvider(statusProvider(), [{ context: 'Gemini Review', state: null }])).toEqual({
+      name: 'Gemini Review',
+      status: 'pending',
+      detail: 'missing status state',
+    });
+  });
+
   it('does not treat a missing or pending commit status as a pass', () => {
     expect(observeStatusProvider(statusProvider(), [{ context: 'Gemini Review', state: 'pending' }])).toEqual({
       name: 'Gemini Review',

@@ -181,6 +181,23 @@ const AppConfigSchema = z
     gate: GateConfigSchema,
     repositories: z.record(z.string(), RepoOverrideSchema).default({}),
   })
+  .superRefine((config, ctx) => {
+    for (const [pattern, override] of Object.entries(config.repositories)) {
+      const gate = override.gate;
+      if (!gate) continue;
+      const strategy = gate.strategy ?? config.gate.strategy;
+      const providers = gate.providers ?? config.gate.providers;
+      if (strategy === 'any' && providers.length === 0) {
+        ctx.addIssue({ code: 'custom', path: ['repositories', pattern, 'gate', 'providers'], message: 'any-provider overrides require effective providers' });
+      }
+      const checkName = gate.check_name ?? config.gate.check_name;
+      providers.forEach((provider, index) => {
+        if (provider.type === 'check' && provider.check_name === checkName) {
+          ctx.addIssue({ code: 'custom', path: ['repositories', pattern, 'gate', 'providers', index, 'check_name'], message: 'provider check_name must differ from the aggregate gate check_name' });
+        }
+      });
+    }
+  })
   .default(() => ({
     app: { name: 'Swear Review', check_name: 'Swear Review' },
     review: { auto: true, default_mode: 'full' as const, review_drafts: false, triggers: { ...TRIGGER_DEFAULTS } },

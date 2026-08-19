@@ -1,6 +1,6 @@
 import type { GateProvider } from '../config/schema.js';
 import type { Database } from '../db/database.js';
-import type { InstallationOctokit } from '../github/app.js';
+import type { GitHubApi, InstallationOctokit } from '../github/app.js';
 import { completeCheckRun, createCheckRun, type CheckOutput } from '../github/checks.js';
 import type { Logger } from '../util/logger.js';
 import { computeAnyProviderGate, type ProviderResult } from './provider-policy.js';
@@ -18,7 +18,7 @@ export interface CheckRunObservation {
 
 export interface CommitStatusObservation {
   context: string;
-  state: string;
+  state: string | null | undefined;
   updated_at?: string | null;
   creator?: { login?: string | null } | null;
 }
@@ -48,10 +48,33 @@ export function observeStatusProvider(provider: GateProvider, statuses: readonly
   );
 
   if (!status) return { name: provider.name, status: 'pending', detail: 'no matching commit status' };
-  const state = status.state.toLowerCase();
+  const state = typeof status.state === 'string' ? status.state.toLowerCase() : '';
+  if (!state) return { name: provider.name, status: 'pending', detail: 'missing status state' };
   if (state === 'success') return { name: provider.name, status: 'passed', detail: state };
   if (state === 'pending') return { name: provider.name, status: 'pending', detail: state };
   return { name: provider.name, status: 'failed', detail: state };
+}
+
+export async function reconcileProviderGateForPullRequest(
+  github: GitHubApi,
+  db: Database,
+  log: Logger,
+  input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    prNumber: number;
+    headSha: string;
+    checkName: string;
+    providers: readonly GateProvider[];
+  },
+): Promise<void> {
+  try {
+    const octokit = await github.getOctokit(input.installationId);
+    await reconcileProviderGate(octokit, db, log, input);
+  } catch (err) {
+    log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
+  }
 }
 
 export async function reconcileProviderGate(
@@ -228,7 +251,9 @@ function buildGateOutput(
 
 function isRetryableGateError(error: unknown): boolean {
   const status = (error as { status?: unknown }).status;
-  return status === undefined || status === 408 || status === 425 || status === 429 || (typeof status === 'number' && status >= 500);
+  if (status === 408 || status === 425 || status === 429 || (typeof status === 'number' && status >= 500)) return true;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' && ['ECONNRESET', 'ECONNREFUSED', 'ETIMEDOUT', 'EAI_AGAIN', 'ENETUNREACH'].includes(code);
 }
 
 async function retryGateApi<T>(operation: () => Promise<T>, log: Logger, description: string, attempts = 3): Promise<T> {

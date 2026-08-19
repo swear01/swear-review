@@ -143,9 +143,9 @@ export class Database {
         `SELECT p.pr_number, r.installation_id
          FROM pull_requests p
          JOIN repositories r ON r.owner = p.repo_owner AND r.name = p.repo_name
-         WHERE p.repo_owner=? AND p.repo_name=? AND p.head_sha=? AND p.state='open'`
+         WHERE p.repo_owner=? AND p.repo_name=? AND p.head_sha=? AND p.state=?`
       )
-      .all(owner, name, headSha);
+      .all(owner, name, headSha, 'open');
     return rows as Array<{ pr_number: number; installation_id: number }>;
   }
 

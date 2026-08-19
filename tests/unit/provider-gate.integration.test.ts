@@ -35,6 +35,26 @@ describe('reconcileProviderGate', () => {
     }
   });
 
+  it('rejects completing a fake check run without a conclusion', async () => {
+    const github = new FakeGitHubApi();
+    const octokit = await github.getOctokit(1);
+    await octokit.rest.checks.create({
+      owner: 'owner',
+      repo: 'repo',
+      name: 'AI Review Gate',
+      head_sha: 'head-a',
+      status: 'in_progress',
+      output: { title: 'test', summary: 'test' },
+    });
+    await expect(octokit.rest.checks.update({
+      owner: 'owner',
+      repo: 'repo',
+      check_run_id: 1,
+      status: 'completed',
+      output: { title: 'test', summary: 'test' },
+    })).rejects.toThrow('conclusion');
+  });
+
   it('does not retry a permanent check update failure', async () => {
     const github = new FakeGitHubApi();
     github.checksUpdateError = Object.assign(new Error('unprocessable'), { status: 422 });
