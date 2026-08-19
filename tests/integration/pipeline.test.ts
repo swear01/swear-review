@@ -19,6 +19,35 @@ afterAll(() => {
 });
 
 describe('full pipeline (webhook → queue → worker → publish)', () => {
+  it('ignores an out-of-order pull_request webhook whose head is no longer current', async () => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    const config = FakeGitHubApi.config({
+      binary: MOCK_OCR,
+      workspaceDir: path.join(REPOS_ROOT, 'ws-stale-webhook'),
+      cloneTemplate: `file://${repo.bareDir}`,
+    });
+    const harness = createHarness(config, github);
+    try {
+      await harness.scheduler.handleEvent('pull_request', {
+        action: 'synchronize',
+        number: 99,
+        pull_request: {
+          number: 99, state: 'open', draft: false, title: 'T',
+          user: { login: 'alice' },
+          head: { sha: 'old-head', ref: 'feature' },
+          base: { sha: repo.baseSha, ref: 'main' },
+        },
+        repository: { name: 'demo', full_name: 'test-owner/demo', owner: { login: 'test-owner' }, private: true, default_branch: 'main' },
+        installation: { id: 123, account: { login: 'test-owner', type: 'User' } },
+      });
+      expect(harness.db.getLatestJob('test-owner', 'demo', 99)).toBeNull();
+    } finally {
+      harness.cleanup();
+    }
+  });
+
   it('Test B: opened PR → auto full review → inline comments + sticky summary + check success', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;
@@ -135,6 +164,7 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       cloneTemplate: `file://${repo.bareDir}`,
       gateMode: 'managed',
     });
+    config.gate.integration_id = 4555972;
     const harness = createHarness(config, github);
     try {
       await harness.scheduler.handleEvent('pull_request', {
@@ -159,8 +189,8 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       const created = github.callsTo('repos.createRepoRuleset');
       expect(created.length).toBe(1);
       expect(created[0]!.params.name).toBe('Swear Review');
-      const rules = created[0]!.params.rules as Array<{ type: string; parameters: { required_status_checks: Array<{ context: string }> } }>;
-      expect(rules.some((r) => r.type === 'required_status_checks' && r.parameters.required_status_checks.some((c) => c.context === 'Swear Review'))).toBe(true);
+      const rules = created[0]!.params.rules as Array<{ type: string; parameters: { required_status_checks: Array<{ context: string; integration_id?: number }> } }>;
+      expect(rules.some((r) => r.type === 'required_status_checks' && r.parameters.required_status_checks.some((c) => c.context === 'Swear Review' && c.integration_id === 4555972))).toBe(true);
       // summary reports merge blocked
       const summary = github.callsTo('issues.createComment').find((c) => String(c.params.body).includes('swear-review-summary'));
       expect(String(summary?.params.body)).toContain('Merge blocked');

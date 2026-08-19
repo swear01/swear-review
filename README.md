@@ -165,6 +165,7 @@ gate:
   mode: off             # off | check | managed
   strategy: single      # single | any
   check_name: "AI Review Gate"
+  # integration_id: 4555972  # optional App ID pin for managed rulesets
   providers: []         # required when strategy is any
   block_categories: [bug, security]
   fail_closed_on_review_error: true

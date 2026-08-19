@@ -19,6 +19,7 @@ export async function reconcileGateForRepository(
     repo: string;
     gateMode: string;
     checkName: string;
+    integrationId?: number;
   },
 ): Promise<{ state: RulesetState; rulesetId: number | null }> {
   const { owner, repo } = input;
@@ -32,7 +33,12 @@ export async function reconcileGateForRepository(
   }
 
   const octokit = await github.getOctokit(input.installationId);
-  const result = await reconcileManagedGate(octokit, log, { owner, repo, checkName: input.checkName });
+  const result = await reconcileManagedGate(octokit, log, {
+    owner,
+    repo,
+    checkName: input.checkName,
+    integrationId: input.integrationId,
+  });
   db.setRepositoryGateState(owner, repo, 'managed', result.rulesetId, result.state);
   return result;
 }

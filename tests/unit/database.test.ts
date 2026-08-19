@@ -6,8 +6,18 @@ describe('review gate persistence', () => {
     const db = new Database(':memory:');
     try {
       expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toBeNull();
-      db.setReviewGate('owner', 'repo', 7, 'head-a', 123);
-      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({ check_run_id: 123 });
+      db.setReviewGate('owner', 'repo', 7, 'head-a', 123, 'in_progress', null);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 123,
+        status: 'in_progress',
+        conclusion: null,
+      });
+      db.setReviewGate('owner', 'repo', 7, 'head-a', 124, 'completed', 'failure');
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 124,
+        status: 'completed',
+        conclusion: 'failure',
+      });
       expect(db.getReviewGate('owner', 'repo', 7, 'head-b')).toBeNull();
     } finally {
       db.close();

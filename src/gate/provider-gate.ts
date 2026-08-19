@@ -6,12 +6,14 @@ import type { Logger } from '../util/logger.js';
 import { computeAnyProviderGate, type ProviderResult } from './provider-policy.js';
 
 export interface CheckRunObservation {
+  id?: number | null;
   name: string;
   status: string;
   conclusion?: string | null;
   app?: { id?: number | null; slug?: string | null } | null;
   started_at?: string | null;
   completed_at?: string | null;
+  created_at?: string | null;
 }
 
 export interface CommitStatusObservation {
@@ -22,12 +24,14 @@ export interface CommitStatusObservation {
 }
 
 export function observeCheckProvider(provider: GateProvider, runs: readonly CheckRunObservation[]): ProviderResult {
-  const matching = runs
-    .filter((run) => run.name === provider.check_name)
-    .filter((run) => provider.app_id === undefined || run.app?.id === provider.app_id)
-    .filter((run) => provider.app_slug === undefined || run.app?.slug === provider.app_slug)
-    .sort((a, b) => observationTime(b).localeCompare(observationTime(a)));
-  const run = matching[0];
+  const run = latestMatching(
+    runs,
+    (candidate) => candidate.name === provider.check_name
+      && (provider.app_id === undefined || candidate.app?.id === provider.app_id)
+      && (provider.app_slug === undefined || candidate.app?.slug === provider.app_slug),
+    (candidate) => candidate.created_at ?? candidate.completed_at ?? candidate.started_at,
+    (candidate) => candidate.id,
+  );
 
   if (!run) return { name: provider.name, status: 'pending', detail: 'no matching check run' };
   if (run.status !== 'completed') return { name: provider.name, status: 'pending', detail: run.status };
@@ -36,11 +40,12 @@ export function observeCheckProvider(provider: GateProvider, runs: readonly Chec
 }
 
 export function observeStatusProvider(provider: GateProvider, statuses: readonly CommitStatusObservation[]): ProviderResult {
-  const matching = statuses
-    .filter((status) => status.context === provider.context)
-    .filter((status) => provider.creator_login === undefined || status.creator?.login === provider.creator_login)
-    .sort((a, b) => String(b.updated_at ?? '').localeCompare(String(a.updated_at ?? '')));
-  const status = matching[0];
+  const status = latestMatching(
+    statuses,
+    (candidate) => candidate.context === provider.context
+      && (provider.creator_login === undefined || candidate.creator?.login === provider.creator_login),
+    (candidate) => candidate.updated_at,
+  );
 
   if (!status) return { name: provider.name, status: 'pending', detail: 'no matching commit status' };
   const state = status.state.toLowerCase();
@@ -64,12 +69,26 @@ export async function reconcileProviderGate(
 ): Promise<void> {
   const key = `${input.owner}/${input.repo}#${input.prNumber}@${input.headSha}`;
   await withGateLock(key, async () => {
-    const results = await readProviderResults(octokit, input.owner, input.repo, input.headSha, input.providers);
+    const results = await retryGateApi(
+      () => readProviderResults(octokit, input.owner, input.repo, input.headSha, input.checkName, input.providers),
+      log,
+      'read provider results',
+    );
     const decision = computeAnyProviderGate(results);
     const output = buildGateOutput(input.headSha, input.providers, results, decision.reason);
-    let checkRunId = db.getReviewGate(input.owner, input.repo, input.prNumber, input.headSha)?.check_run_id ?? null;
+    const previous = db.getReviewGate(input.owner, input.repo, input.prNumber, input.headSha);
 
-    if (checkRunId === null) {
+    // A completed GitHub check run is immutable. Reuse it only when the
+    // persisted decision is unchanged; state changes get a fresh check run.
+    if (previous?.status === 'completed' && previous.conclusion === decision.conclusion) return;
+
+    let checkRunId = previous?.check_run_id ?? null;
+    const needsNewCheckRun = checkRunId === null
+      || (previous?.status === 'completed' && decision.status === 'in_progress')
+      || (previous?.status === 'completed' && decision.status === 'completed' && previous.conclusion !== decision.conclusion);
+
+    let createdCheckRun = false;
+    if (needsNewCheckRun) {
       checkRunId = await createCheckRun(octokit, log, {
         owner: input.owner,
         repo: input.repo,
@@ -77,30 +96,71 @@ export async function reconcileProviderGate(
         name: input.checkName,
         output,
       });
-      db.setReviewGate(input.owner, input.repo, input.prNumber, input.headSha, checkRunId);
+      createdCheckRun = true;
+      try {
+        db.setReviewGate(input.owner, input.repo, input.prNumber, input.headSha, checkRunId, 'in_progress', null);
+      } catch (err) {
+        await completeCheckRun(octokit, log, {
+          owner: input.owner,
+          repo: input.repo,
+          checkRunId,
+          conclusion: 'failure',
+          output: { title: 'AI Review Gate persistence failed', summary: 'The gate state could not be persisted.' },
+        });
+        throw err;
+      }
     }
 
-    if (decision.status === 'completed') {
-      await completeCheckRun(octokit, log, {
-        owner: input.owner,
-        repo: input.repo,
-        checkRunId,
-        conclusion: decision.conclusion!,
-        output,
-      });
-      return;
-    }
+    if (checkRunId === null) throw new Error('provider gate check run was not created');
 
     try {
-      await octokit.rest.checks.update({
-        owner: input.owner,
-        repo: input.repo,
-        check_run_id: checkRunId,
-        status: 'in_progress',
-        output,
-      });
+      if (decision.status === 'completed') {
+        await retryGateApi(
+          () => completeCheckRun(octokit, log, {
+            owner: input.owner,
+            repo: input.repo,
+            checkRunId,
+            conclusion: decision.conclusion,
+            output,
+            throwOnError: true,
+          }),
+          log,
+          'complete provider gate',
+        );
+      } else {
+        await retryGateApi(
+          () => octokit.rest.checks.update({
+            owner: input.owner,
+            repo: input.repo,
+            check_run_id: checkRunId,
+            status: 'in_progress',
+            output,
+          }).then(() => undefined),
+          log,
+          'update provider gate',
+        );
+      }
+
+      db.setReviewGate(
+        input.owner,
+        input.repo,
+        input.prNumber,
+        input.headSha,
+        checkRunId,
+        decision.status,
+        decision.status === 'completed' ? decision.conclusion : null,
+      );
     } catch (err) {
-      log.error({ err: (err as Error).message, checkRunId }, 'failed to update provider gate');
+      if (createdCheckRun && decision.status === 'completed') {
+        await completeCheckRun(octokit, log, {
+          owner: input.owner,
+          repo: input.repo,
+          checkRunId,
+          conclusion: 'failure',
+          output: { title: 'AI Review Gate update failed', summary: 'The gate result could not be confirmed.' },
+        });
+      }
+      throw err;
     }
   });
 }
@@ -110,22 +170,26 @@ async function readProviderResults(
   owner: string,
   repo: string,
   headSha: string,
+  gateCheckName: string,
   providers: readonly GateProvider[],
 ): Promise<ProviderResult[]> {
   const checkProviders = providers.filter((provider) => provider.type === 'check');
   const statusProviders = providers.filter((provider) => provider.type === 'status');
   const [checkRuns, statuses] = await Promise.all([
     checkProviders.length > 0
-      ? (await octokit.rest.checks.listForRef({ owner, repo, ref: headSha, filter: 'all', per_page: 100 })).data.check_runs
-      : [],
+      ? listCheckRuns(octokit, owner, repo, headSha)
+      : Promise.resolve([] as CheckRunObservation[]),
     statusProviders.length > 0
-      ? (await octokit.rest.repos.listCommitStatusesForRef({ owner, repo, ref: headSha, per_page: 100 })).data
-      : [],
+      ? listCommitStatuses(octokit, owner, repo, headSha)
+      : Promise.resolve([] as CommitStatusObservation[]),
   ]);
 
+  const observations = checkRuns.filter((run) => run.name !== gateCheckName);
+  const statusObservations = statuses;
+
   return providers.map((provider) => provider.type === 'check'
-    ? observeCheckProvider(provider, checkRuns as CheckRunObservation[])
-    : observeStatusProvider(provider, statuses as CommitStatusObservation[]));
+    ? observeCheckProvider(provider, observations)
+    : observeStatusProvider(provider, statusObservations));
 }
 
 function buildGateOutput(
@@ -142,8 +206,76 @@ function buildGateOutput(
   };
 }
 
-function observationTime(observation: CheckRunObservation): string {
-  return String(observation.completed_at ?? observation.started_at ?? '');
+async function retryGateApi<T>(operation: () => Promise<T>, log: Logger, description: string, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await operation();
+    } catch (err) {
+      lastError = err;
+      if (attempt === attempts) break;
+      log.warn({ attempt, err: (err as Error).message, description }, 'retrying provider gate GitHub API call');
+      await new Promise((resolve) => setTimeout(resolve, 100 * attempt));
+    }
+  }
+  throw lastError;
+}
+
+async function listCheckRuns(
+  octokit: InstallationOctokit,
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<CheckRunObservation[]> {
+  const runs: CheckRunObservation[] = [];
+  for (let page = 1; ; page++) {
+    const response = await octokit.rest.checks.listForRef({ owner, repo, ref: headSha, filter: 'all', per_page: 100, page });
+    runs.push(...response.data.check_runs.map((run) => ({
+      id: Number(run.id),
+      name: run.name,
+      status: run.status,
+      conclusion: run.conclusion,
+      app: run.app,
+      started_at: run.started_at,
+      completed_at: run.completed_at,
+    })));
+    if (response.data.check_runs.length < 100) break;
+  }
+  return runs;
+}
+
+async function listCommitStatuses(
+  octokit: InstallationOctokit,
+  owner: string,
+  repo: string,
+  headSha: string,
+): Promise<CommitStatusObservation[]> {
+  const statuses: CommitStatusObservation[] = [];
+  for (let page = 1; ; page++) {
+    const response = await octokit.rest.repos.listCommitStatusesForRef({ owner, repo, ref: headSha, per_page: 100, page });
+    statuses.push(...response.data.map((status) => ({
+      context: status.context,
+      state: status.state,
+      updated_at: status.updated_at,
+      creator: status.creator,
+    })));
+    if (response.data.length < 100) break;
+  }
+  return statuses;
+}
+
+function latestMatching<T>(
+  values: readonly T[],
+  matches: (value: T) => boolean,
+  timestamp: (value: T) => string | null | undefined,
+  order: (value: T) => number | null | undefined = () => undefined,
+): T | undefined {
+  return values
+    .filter(matches)
+    .sort((a, b) => {
+      const time = String(timestamp(b) ?? '').localeCompare(String(timestamp(a) ?? ''));
+      return time !== 0 ? time : Number(order(b) ?? 0) - Number(order(a) ?? 0);
+    })[0];
 }
 
 const gateLocks = new Map<string, Promise<void>>();

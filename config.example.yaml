@@ -67,6 +67,8 @@ gate:
   strategy: single
   # Required check name for the any-provider gate
   check_name: "AI Review Gate"
+  # Optional GitHub App ID that must author the required gate check in managed rulesets.
+  # integration_id: 4555972
   # Check/status providers are evaluated against the exact PR HEAD SHA.
   # A provider must publish an explicit success; comments alone do not count.
   # Pin each check to app_id/app_slug and each status to creator_login.

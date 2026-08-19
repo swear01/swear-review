@@ -6,11 +6,9 @@ export interface ProviderResult {
   detail?: string;
 }
 
-export interface ProviderGateDecision {
-  status: 'in_progress' | 'completed';
-  conclusion?: 'success' | 'failure';
-  reason: string;
-}
+export type ProviderGateDecision =
+  | { status: 'in_progress'; conclusion?: undefined; reason: string }
+  | { status: 'completed'; conclusion: 'success' | 'failure'; reason: string };
 
 /** OR gate: one successful provider is enough to allow merging. */
 export function computeAnyProviderGate(results: readonly ProviderResult[]): ProviderGateDecision {

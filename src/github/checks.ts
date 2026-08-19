@@ -42,6 +42,7 @@ export async function completeCheckRun(
     checkRunId: number;
     conclusion: CheckConclusion;
     output: CheckOutput;
+    throwOnError?: boolean;
   },
 ): Promise<void> {
   try {
@@ -56,6 +57,7 @@ export async function completeCheckRun(
     });
   } catch (err) {
     log.error({ err: (err as Error).message, checkRunId: input.checkRunId }, 'failed to complete check run');
+    if (input.throwOnError) throw err;
   }
 }
 

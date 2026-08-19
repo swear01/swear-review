@@ -93,5 +93,6 @@ describe('webhook endpoint', () => {
     expect(job.head_sha).toBe('1111111111111111111111111111111111111111');
     // private-repo-style permission check only happens for public repos
     expect(github.callsTo('repos.getCollaboratorPermissionLevel').length).toBe(1);
+    expect(github.callsTo('pulls.get').length).toBe(1);
   });
 });

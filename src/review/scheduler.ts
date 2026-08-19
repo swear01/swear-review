@@ -66,6 +66,21 @@ export class Scheduler {
     const headSha: string = pr.head.sha;
     const baseSha: string = pr.base.sha;
     const draft: boolean = !!pr.draft;
+    const octokit = await this.ctx.github.getOctokit(installationId);
+    let currentPr;
+    try {
+      currentPr = await octokit.rest.pulls.get({ owner, repo: name, pull_number: prNumber });
+    } catch (err) {
+      this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'could not revalidate pull request head; ignoring event');
+      return;
+    }
+    if (currentPr.data.state !== 'open' || currentPr.data.head.sha !== headSha) {
+      this.ctx.log.info(
+        { repo: `${owner}/${name}`, pr: prNumber, eventHeadSha: headSha, currentHeadSha: currentPr.data.head.sha },
+        'ignoring stale pull_request event',
+      );
+      return;
+    }
 
     // Real pull_request payloads may omit installation.account (only id/node_id).
     const instAccount = payload.installation?.account;
@@ -91,7 +106,6 @@ export class Scheduler {
 
     // Public repo abuse protection: auto review only trusted collaborators.
     if (!repo.private && !resolved.security.auto_review_external_prs) {
-      const octokit = await this.ctx.github.getOctokit(installationId);
       const permission = await this.getPermission(octokit, owner, name, pr.user.login);
       if (!isAllowedRole(permission)) {
         this.ctx.log.info(
@@ -275,6 +289,10 @@ export class Scheduler {
     const headSha: string = checkRun.head_sha;
     if (!owner || !name || !headSha) return;
 
+    const resolved = resolveRepoConfig(this.ctx.config, owner, name);
+    if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
+    if (!resolved.gate.providers.some((provider) => provider.type === 'check' && provider.check_name === checkRun.name)) return;
+
     const rows = this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha);
     for (const row of rows) {
       await this.reconcileConfiguredGate({
@@ -283,7 +301,7 @@ export class Scheduler {
         repo: name,
         prNumber: row.pr_number,
         headSha,
-        resolved: resolveRepoConfig(this.ctx.config, owner, name),
+        resolved,
       });
     }
   }
@@ -293,7 +311,12 @@ export class Scheduler {
     const owner: string = repo?.owner?.login;
     const name: string = repo?.name;
     const headSha: string = payload.sha;
-    if (!owner || !name || !headSha) return;
+    const context: string = payload.context;
+    if (!owner || !name || !headSha || !context) return;
+
+    const resolved = resolveRepoConfig(this.ctx.config, owner, name);
+    if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
+    if (!resolved.gate.providers.some((provider) => provider.type === 'status' && provider.context === context)) return;
 
     for (const row of this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha)) {
       await this.reconcileConfiguredGate({
@@ -302,7 +325,7 @@ export class Scheduler {
         repo: name,
         prNumber: row.pr_number,
         headSha,
-        resolved: resolveRepoConfig(this.ctx.config, owner, name),
+        resolved,
       });
     }
   }
@@ -316,6 +339,7 @@ export class Scheduler {
     resolved: ReturnType<typeof resolveRepoConfig>;
   }): Promise<void> {
     if (input.resolved.gate.mode === 'off' || input.resolved.gate.strategy !== 'any') return;
+
     try {
       const octokit = await this.ctx.github.getOctokit(input.installationId);
       await reconcileProviderGate(octokit, this.ctx.db, this.ctx.log, {
@@ -326,17 +350,23 @@ export class Scheduler {
         checkName: input.resolved.gate.check_name,
         providers: input.resolved.gate.providers,
       });
-      if (input.resolved.gate.mode === 'managed') {
+    } catch (err) {
+      this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
+    }
+
+    if (input.resolved.gate.mode === 'managed') {
+      try {
         await reconcileGateForRepository(this.ctx.github, this.ctx.db, this.ctx.log, {
           installationId: input.installationId,
           owner: input.owner,
           repo: input.repo,
           gateMode: input.resolved.gate.mode,
           checkName: input.resolved.gate.check_name,
+          integrationId: input.resolved.gate.integration_id,
         });
+      } catch (err) {
+        this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'managed gate reconciliation failed');
       }
-    } catch (err) {
-      this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
     }
   }
 

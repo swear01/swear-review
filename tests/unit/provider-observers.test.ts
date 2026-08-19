@@ -44,6 +44,28 @@ describe('provider observations', () => {
     }])).toEqual({ name: 'Cursor Bugbot', status: 'pending', detail: 'in_progress' });
   });
 
+  it('uses a newer queued check over an older successful check', () => {
+    expect(observeCheckProvider(checkProvider(), [
+      {
+        id: 1,
+        name: 'Cursor Bugbot',
+        status: 'completed',
+        conclusion: 'success',
+        created_at: '2026-08-19T00:00:00Z',
+        app: { id: 1210556, slug: 'cursor' },
+      },
+      {
+        id: 2,
+        name: 'Cursor Bugbot',
+        status: 'queued',
+        conclusion: null,
+        created_at: '2026-08-19T00:01:00Z',
+        started_at: null,
+        app: { id: 1210556, slug: 'cursor' },
+      },
+    ])).toEqual({ name: 'Cursor Bugbot', status: 'pending', detail: 'queued' });
+  });
+
   it('maps a failed check to a failed provider', () => {
     expect(observeCheckProvider(checkProvider(), [{
       name: 'Cursor Bugbot',

@@ -151,25 +151,44 @@ export class Database {
 
   // ---- review gates --------------------------------------------------------
 
-  getReviewGate(owner: string, name: string, prNumber: number, headSha: string): { check_run_id: number } | null {
+  getReviewGate(owner: string, name: string, prNumber: number, headSha: string): {
+    check_run_id: number;
+    status: 'in_progress' | 'completed';
+    conclusion: 'success' | 'failure' | null;
+  } | null {
     const row = this.db
       .prepare(
-        `SELECT check_run_id FROM review_gates
+        `SELECT check_run_id, status, conclusion FROM review_gates
          WHERE repo_owner=? AND repo_name=? AND pr_number=? AND head_sha=?`
       )
       .get(owner, name, prNumber, headSha);
-    return (row as { check_run_id: number } | undefined) ?? null;
+    return (row as {
+      check_run_id: number;
+      status: 'in_progress' | 'completed';
+      conclusion: 'success' | 'failure' | null;
+    } | undefined) ?? null;
   }
 
-  setReviewGate(owner: string, name: string, prNumber: number, headSha: string, checkRunId: number): void {
+  setReviewGate(
+    owner: string,
+    name: string,
+    prNumber: number,
+    headSha: string,
+    checkRunId: number,
+    status: 'in_progress' | 'completed',
+    conclusion: 'success' | 'failure' | null,
+  ): void {
     this.db
       .prepare(
-        `INSERT INTO review_gates (repo_owner, repo_name, pr_number, head_sha, check_run_id, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO review_gates (repo_owner, repo_name, pr_number, head_sha, check_run_id, status, conclusion, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(repo_owner, repo_name, pr_number, head_sha) DO UPDATE SET
-           check_run_id=excluded.check_run_id, updated_at=excluded.updated_at`
+           check_run_id=excluded.check_run_id,
+           status=excluded.status,
+           conclusion=excluded.conclusion,
+           updated_at=excluded.updated_at`
       )
-      .run(owner, name, prNumber, headSha, checkRunId, new Date().toISOString());
+      .run(owner, name, prNumber, headSha, checkRunId, status, conclusion, new Date().toISOString());
   }
 
   // ---- repository state ----------------------------------------------------

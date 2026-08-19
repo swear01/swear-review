@@ -35,6 +35,66 @@ describe('reconcileProviderGate', () => {
     }
   });
 
+  it('recreates the gate check run after a completed result becomes pending again', async () => {
+    const github = new FakeGitHubApi();
+    const db = new Database(':memory:');
+    const provider = { name: 'Cursor Bugbot', type: 'check' as const, check_name: 'Cursor Bugbot', app_id: 1210556 };
+    try {
+      const octokit = await github.getOctokit(1);
+      const input = {
+        owner: 'owner',
+        repo: 'repo',
+        prNumber: 7,
+        headSha: 'head-a',
+        checkName: 'AI Review Gate',
+        providers: [provider],
+      };
+
+      await reconcileProviderGate(octokit, db, log, input);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 1,
+        status: 'in_progress',
+        conclusion: null,
+      });
+
+      github.checkRuns.push({
+        name: 'Cursor Bugbot',
+        status: 'completed',
+        conclusion: 'failure',
+        head_sha: 'head-a',
+        app: { id: 1210556, slug: 'cursor' },
+      });
+      await reconcileProviderGate(octokit, db, log, input);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 1,
+        status: 'completed',
+        conclusion: 'failure',
+      });
+
+      github.checkRuns.find((run) => run.name === 'Cursor Bugbot')!.status = 'in_progress';
+      github.checkRuns.find((run) => run.name === 'Cursor Bugbot')!.conclusion = null;
+      await reconcileProviderGate(octokit, db, log, input);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 2,
+        status: 'in_progress',
+        conclusion: null,
+      });
+      expect(github.callsTo('checks.create')).toHaveLength(2);
+      expect(github.callsTo('checks.update').map((call) => call.params.check_run_id)).toEqual([1, 1, 2]);
+
+      github.checkRuns.find((run) => run.name === 'Cursor Bugbot')!.status = 'completed';
+      github.checkRuns.find((run) => run.name === 'Cursor Bugbot')!.conclusion = 'success';
+      await reconcileProviderGate(octokit, db, log, input);
+      expect(db.getReviewGate('owner', 'repo', 7, 'head-a')).toEqual({
+        check_run_id: 2,
+        status: 'completed',
+        conclusion: 'success',
+      });
+    } finally {
+      db.close();
+    }
+  });
+
   it('publishes success when any configured provider passed for the exact head', async () => {
     const github = new FakeGitHubApi();
     github.checkRuns = [{

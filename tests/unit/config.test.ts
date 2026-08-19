@@ -63,6 +63,35 @@ gate:
 `)).toThrow();
   });
 
+  it('rejects unknown provider fields', () => {
+    expect(() => parseConfig(`
+ gate:
+  strategy: any
+  providers:
+    - name: Cursor Bugbot
+      type: check
+      check_name: Cursor Bugbot
+      app_slug: cursor
+      appId: 1210556
+`)).toThrow();
+  });
+
+  it('rejects duplicate provider names', () => {
+    expect(() => parseConfig(`
+ gate:
+  strategy: any
+  providers:
+    - name: Duplicate
+      type: check
+      check_name: First
+      app_slug: first
+    - name: Duplicate
+      type: check
+      check_name: Second
+      app_slug: second
+`)).toThrow();
+  });
+
   it('parses an any-provider gate', () => {
     const c = parseConfig(`
  gate:
@@ -103,12 +132,14 @@ repositories:
     gate:
       mode: managed
   "OWNER/production-api":
+    gate:
+      mode: check
     review:
       auto: false
 `);
     const exact = resolveRepoConfig(c, 'OWNER', 'production-api');
+    expect(exact.gate.mode).toBe('check');
     expect(exact.review.auto).toBe(false);
-    expect(exact.gate.mode).toBe('managed'); // glob still applies to gate
     const glob = resolveRepoConfig(c, 'OWNER', 'production-web');
     expect(glob.gate.mode).toBe('managed');
     expect(glob.review.auto).toBe(true);
@@ -135,6 +166,16 @@ repositories:
       mode: check
 `);
     expect(resolveRepoConfig(c, 'anything', 'repo').gate.mode).toBe('check');
+  });
+
+  it('rejects an any-provider override without providers', () => {
+    const c = parseConfig(`
+repositories:
+  a/b:
+    gate:
+      strategy: any
+`);
+    expect(() => resolveRepoConfig(c, 'a', 'b')).toThrow();
   });
 
   it('applies any-provider gate overrides without mutating the base', () => {

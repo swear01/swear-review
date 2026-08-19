@@ -36,6 +36,7 @@ export class FakeGitHubApi implements GitHubApi {
   private nextCheckId = 1;
   private nextRulesetId = 1;
   checkRuns: Array<{
+    id?: number;
     name: string;
     status: string;
     conclusion: string | null;
@@ -125,6 +126,7 @@ export class FakeGitHubApi implements GitHubApi {
           create: fakeEndpoint('checks.create', (n, p) => self.record(n, p), (p) => {
             const id = self.nextCheckId++;
             self.checkRuns.push({
+              id,
               name: String(p.name),
               status: String(p.status),
               conclusion: null,
@@ -133,18 +135,19 @@ export class FakeGitHubApi implements GitHubApi {
             return { data: { id } };
           }),
           update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
-            const run = self.checkRuns.find((r) => r.name === String(p.name));
+            const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
             if (run) {
               run.status = String(p.status);
               run.conclusion = (p.conclusion as string | null | undefined) ?? run.conclusion;
             }
             return { data: {} };
           }),
-          listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => ({
-            data: {
-              check_runs: self.checkRuns.filter((r) => r.head_sha === String(p.ref)),
-            },
-          })),
+          listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {
+            const page = Number(p.page ?? 1);
+            const perPage = Number(p.per_page ?? 100);
+            const all = self.checkRuns.filter((r) => r.head_sha === String(p.ref));
+            return { data: { check_runs: all.slice((page - 1) * perPage, page * perPage) } };
+          }),
         },
         repos: {
           getCollaboratorPermissionLevel: fakeEndpoint('repos.getCollaboratorPermissionLevel', (n, p) => self.record(n, p), () => ({ data: { permission: self.permission } })),
@@ -157,10 +160,21 @@ export class FakeGitHubApi implements GitHubApi {
           }),
           updateRepoRuleset: fakeEndpoint('repos.updateRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
           deleteRepoRuleset: fakeEndpoint('repos.deleteRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
-          listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => ({
-            data: self.commitStatuses.filter((s) => !s.sha || s.sha === String(p.ref)),
-          })),
+          listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => {
+            const page = Number(p.page ?? 1);
+            const perPage = Number(p.per_page ?? 100);
+            const all = self.commitStatuses.filter((s) => !s.sha || s.sha === String(p.ref));
+            return { data: all.slice((page - 1) * perPage, page * perPage) };
+          }),
         },
+      },
+      paginate: async (
+        endpoint: (params: Record<string, unknown>) => Promise<{ data: unknown }>,
+        params: Record<string, unknown>,
+      ) => {
+        const response = await endpoint(params);
+        const data = response.data as { check_runs?: unknown[] } | unknown[];
+        return Array.isArray(data) ? data : data.check_runs ?? [];
       },
     };
   }

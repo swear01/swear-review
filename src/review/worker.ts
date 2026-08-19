@@ -230,14 +230,15 @@ export class Worker {
         failClosedOnReviewError: resolved.gate.fail_closed_on_review_error,
       });
 
-      if (resolved.gate.mode === 'managed') {
+      if (resolved.gate.mode === 'managed' && resolved.gate.strategy !== 'any') {
         // Ruleset reconciliation must never kill the review.
         await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
           installationId: job.installation_id,
           owner: job.repo_owner,
           repo: job.repo_name,
           gateMode: resolved.gate.mode,
-          checkName: resolved.gate.strategy === 'any' ? resolved.gate.check_name : resolved.app.check_name,
+          checkName: resolved.app.check_name,
+          integrationId: resolved.gate.integration_id,
         }).catch((err) => log.warn({ err: (err as Error).message }, 'managed gate reconciliation failed (degraded)'));
       }
 
@@ -386,17 +387,23 @@ export class Worker {
         checkName: resolved.gate.check_name,
         providers: resolved.gate.providers,
       });
-      if (resolved.gate.mode === 'managed') {
+    } catch (gateErr) {
+      log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
+    }
+
+    if (resolved.gate.mode === 'managed') {
+      try {
         await reconcileGateForRepository(this.ctx.github, this.ctx.db, log, {
           installationId: job.installation_id,
           owner: job.repo_owner,
           repo: job.repo_name,
           gateMode: resolved.gate.mode,
           checkName: resolved.gate.check_name,
+          integrationId: resolved.gate.integration_id,
         });
+      } catch (gateErr) {
+        log.warn({ err: (gateErr as Error).message }, 'managed gate refresh failed');
       }
-    } catch (gateErr) {
-      log.warn({ err: (gateErr as Error).message }, 'provider gate refresh failed');
     }
   }
 
