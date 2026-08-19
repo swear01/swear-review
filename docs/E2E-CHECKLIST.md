@@ -68,6 +68,12 @@ Run the test repository through each mode:
 - `gate.mode: check`: configured blocking categories make the Check fail.
 - `gate.mode: managed`: the App creates/updates the required-status ruleset when
   the GitHub plan and App permissions allow it.
+- `gate.strategy: any`: `AI Review Gate` passes when any configured provider
+  reports `success` for the current HEAD; it remains pending until then and
+  fails only after every provider reaches a non-success terminal result.
+- Any-provider ruleset requires only `AI Review Gate`; individual provider
+  checks must not also be required.
+- A provider result from an older HEAD does not satisfy the gate.
 - Managed-gate permission/plan failure: review publication continues and the
   gate reports unavailable instead of killing the review.
 
@@ -115,6 +121,7 @@ should never block a PR as an infrastructure failure.
 - [ ] Re-push deduplication and stale protection work
 - [ ] Manual commands and permission denial work
 - [ ] All gate modes behave as configured
+- [ ] Any-provider gate passes with one successful provider and blocks with none
 - [ ] OCR failure is fail-closed
 - [ ] OCR `skipped` is an empty successful review
 - [ ] `/healthz`, `/readyz`, and structured logs are healthy

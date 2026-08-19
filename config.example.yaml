@@ -63,6 +63,35 @@ security:
 gate:
   # off | check | managed
   mode: off
+  # single = Swear Review only; any = one configured provider passing is enough
+  strategy: single
+  # Required check name for the any-provider gate
+  check_name: "AI Review Gate"
+  # Optional GitHub App ID that must author the required gate check in managed rulesets.
+  # integration_id: 4555972
+  # Check/status providers are evaluated against the exact PR HEAD SHA.
+  # A provider must publish an explicit success; comments alone do not count.
+  # Pin each check to app_id/app_slug and each status to creator_login.
+  providers: []
+  # Example any-provider setup:
+  # strategy: any
+  # providers:
+  #   - name: Swear Review
+  #     type: check
+  #     check_name: "Swear Review"
+  #     app_slug: swear-review
+  #   - name: Cursor Bugbot
+  #     type: check
+  #     check_name: "Cursor Bugbot"
+  #     app_id: 1210556
+  #   - name: Codex Review
+  #     type: check
+  #     check_name: "Codex Review"
+  #     app_slug: github-actions
+  #   - name: Gemini Review
+  #     type: status
+  #     context: "Gemini Review"
+  #     creator_login: github-actions[bot]
   # Categories that block merging (severity is ignored — category is what counts)
   block_categories:
     - bug
@@ -71,10 +100,10 @@ gate:
   fail_closed_on_review_error: true
 
 # Per-repository overrides (precedence: defaults < global < glob < exact)
-repositories:
-  # "OWNER/critical-project":
-  #   gate:
-  #     mode: managed
-  # "OWNER/experimental-*":
-  #   review:
-  #     auto: false
+repositories: {}
+# "OWNER/critical-project":
+#   gate:
+#     mode: managed
+# "OWNER/experimental-*":
+#   review:
+#     auto: false

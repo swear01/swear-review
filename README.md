@@ -17,7 +17,8 @@ checkout → queue → OCR 1.9.x → findings
               │
               ├─ inline review comments
               ├─ sticky summary comment
-              └─ Swear Review Check Run
+              ├─ Swear Review Check Run
+              └─ optional AI Review Gate (any configured provider may pass)
 ```
 
 ## Features
@@ -84,6 +85,7 @@ Create an app at <https://github.com/settings/apps/new> with:
 - `pull_request`
 - `issue_comment`
 - `check_run`
+- `status`
 - `installation`
 - `installation_repositories`
 - `repository`
@@ -161,6 +163,10 @@ security:
 
 gate:
   mode: off             # off | check | managed
+  strategy: single      # single | any
+  check_name: "AI Review Gate"
+  # integration_id: 4555972  # optional App ID pin for managed rulesets
+  providers: []         # required when strategy is any
   block_categories: [bug, security]
   fail_closed_on_review_error: true
 ```
@@ -191,11 +197,30 @@ repositories:
 
 - **`off`** — findings are published, the Check Run succeeds, and merging is
   unaffected. Infrastructure failures still fail the Check Run.
-- **`check`** — configured blocking categories make the Check Run fail. GitHub
-  can enforce it if `Swear Review` is marked as a required check.
+- **`single` strategy** — the configured blocking categories make the Swear
+  Review Check Run fail. GitHub can enforce it if `Swear Review` is marked as a
+  required check.
+- **`any` strategy** — the service publishes one `AI Review Gate` Check Run and
+  evaluates every configured provider against the exact PR HEAD SHA. One
+  provider with an explicit `success` is enough for the gate to pass; the gate
+  fails only when every configured provider has reached a non-success terminal
+  result. While no provider has passed and at least one is still pending, the
+  gate remains in progress.
 - **`managed`** — the service creates or updates a repository ruleset requiring
-  the Check Run. This needs `Administration: write` and may be unavailable on
-  some GitHub plans.
+  the configured gate check. For `strategy: any`, require only `AI Review Gate`
+  and remove individual provider checks (including `Swear Review`) from branch
+  protection; GitHub otherwise applies its normal AND semantics. This needs
+  `Administration: write` and may be unavailable on some GitHub plans.
+
+Provider checks and commit statuses must be emitted for the current HEAD SHA.
+Pin check providers with `app_id` or `app_slug`, and status providers with
+`creator_login`; an unpinned provider is rejected by configuration. Only an
+explicit successful check/status counts; `neutral`, `skipped`, comments,
+reactions, and a `COMMENTED` pull-request review do not count as a pass. Cursor
+Bugbot publishes a `Cursor Bugbot` Check Run. Native Codex Cloud and Gemini Code
+Assist reviews currently publish GitHub comments/reviews rather than a stable
+successful check, so configure a Codex/Gemini Action or status bridge before
+including them in a hard gate.
 
 ### OCR status `skipped`
 

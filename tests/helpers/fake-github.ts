@@ -10,6 +10,12 @@ function fakeEndpoint(endpointName: string, record: (name: string, params: Recor
   };
 }
 
+function pageSlice<T>(values: readonly T[], params: Record<string, unknown>): T[] {
+  const page = Number(params.page ?? 1);
+  const perPage = Number(params.per_page ?? 100);
+  return values.slice((page - 1) * perPage, page * perPage);
+}
+
 /**
  * Fake GitHub API for tests. Records every REST call and returns canned data.
  */
@@ -35,8 +41,23 @@ export class FakeGitHubApi implements GitHubApi {
   private nextCommentId = 1;
   private nextCheckId = 1;
   private nextRulesetId = 1;
+  createdCheckApp: { id?: number; slug?: string } | null = null;
+  checkRuns: Array<{
+    id?: number;
+    name: string;
+    status: string;
+    conclusion: string | null;
+    head_sha: string;
+    app?: { id?: number; slug?: string } | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+    created_at?: string | null;
+  }> = [];
+  commitStatuses: Array<{ context: string; state: string; sha?: string; updated_at?: string; creator?: { login?: string } }> = [];
   rulesets: Array<{ id: number; name: string }> = [];
   rulesetCreateError: Error | null = null;
+  checksUpdateError: Error | null = null;
+  checksUpdateErrorForId: number | null = null;
   /** repo-level review comments (mirrors GET /pulls/{n}/comments) */
   reviewComments: Array<{ id: number; review_id: number; path: string; line: number | null; start_line: number | null; original_line: number | null }> = [];
 
@@ -114,8 +135,39 @@ export class FakeGitHubApi implements GitHubApi {
           updateComment: fakeEndpoint('issues.updateComment', (n, p) => self.record(n, p), () => ({ data: { id: self.nextCommentId++ } })),
         },
         checks: {
-          create: fakeEndpoint('checks.create', (n, p) => self.record(n, p), () => ({ data: { id: self.nextCheckId++ } })),
-          update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), () => ({ data: {} })),
+          create: fakeEndpoint('checks.create', (n, p) => self.record(n, p), (p) => {
+            const id = self.nextCheckId++;
+            self.checkRuns.push({
+              id,
+              name: String(p.name),
+              status: String(p.status),
+              conclusion: null,
+              head_sha: String(p.head_sha),
+              app: self.createdCheckApp,
+              started_at: (p.started_at as string | undefined) ?? null,
+              created_at: new Date().toISOString(),
+            });
+            return { data: { id } };
+          }),
+          update: fakeEndpoint('checks.update', (n, p) => self.record(n, p), (p) => {
+            if (self.checksUpdateError && (self.checksUpdateErrorForId === null || self.checksUpdateErrorForId === Number(p.check_run_id))) throw self.checksUpdateError;
+            if (p.status === 'completed' && p.conclusion === undefined) throw Object.assign(new Error('completed check run requires a conclusion'), { status: 422 });
+            const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
+            if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
+            if (p.status !== undefined) run.status = String(p.status);
+            if (p.status !== undefined && p.status !== 'completed') {
+              run.conclusion = null;
+              run.completed_at = null;
+            } else if (p.status === 'completed') {
+              if (p.conclusion !== undefined) run.conclusion = p.conclusion as string | null;
+              if (p.completed_at !== undefined) run.completed_at = p.completed_at === null ? null : String(p.completed_at);
+            }
+            return { data: {} };
+          }),
+          listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {
+            const all = self.checkRuns.filter((r) => r.head_sha === String(p.ref));
+            return { data: { check_runs: pageSlice(all, p) } };
+          }),
         },
         repos: {
           getCollaboratorPermissionLevel: fakeEndpoint('repos.getCollaboratorPermissionLevel', (n, p) => self.record(n, p), () => ({ data: { permission: self.permission } })),
@@ -128,6 +180,10 @@ export class FakeGitHubApi implements GitHubApi {
           }),
           updateRepoRuleset: fakeEndpoint('repos.updateRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
           deleteRepoRuleset: fakeEndpoint('repos.deleteRepoRuleset', (n, p) => self.record(n, p), () => ({ data: {} })),
+          listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => {
+            const all = self.commitStatuses.filter((s) => s.sha === String(p.ref));
+            return { data: pageSlice(all, p) };
+          }),
         },
       },
     };

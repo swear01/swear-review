@@ -45,7 +45,12 @@ export function resolveRepoConfig(config: AppConfig, owner: string, repo: string
   const key = `${owner}/${repo}`;
   const matches = Object.entries(config.repositories)
     .filter(([pattern]) => pattern === key || micromatch.isMatch(key, pattern, { dot: true }))
-    .sort(([a], [b]) => b.length - a.length); // exact / most specific first
+    .sort(([a], [b]) => {
+      const aExact = a === key;
+      const bExact = b === key;
+      if (aExact !== bExact) return aExact ? 1 : -1;
+      return a.length - b.length;
+    }); // broadest first; exact last
 
   if (matches.length === 0) return config;
 
@@ -55,8 +60,12 @@ export function resolveRepoConfig(config: AppConfig, owner: string, repo: string
   for (const [, override] of matches) {
     if (override.review?.auto !== undefined) result.review.auto = override.review.auto;
     if (override.gate?.mode !== undefined) result.gate.mode = override.gate.mode;
+    if (override.gate?.strategy !== undefined) result.gate.strategy = override.gate.strategy;
+    if (override.gate?.check_name !== undefined) result.gate.check_name = override.gate.check_name;
+    if (override.gate?.integration_id !== undefined) result.gate.integration_id = override.gate.integration_id;
+    if (override.gate?.providers !== undefined) result.gate.providers = structuredClone(override.gate.providers);
   }
-  return result as AppConfig;
+  return AppConfigSchema.parse(result);
 }
 
 export { defaultConfig };

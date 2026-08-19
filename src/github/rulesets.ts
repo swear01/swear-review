@@ -16,9 +16,9 @@ export type RulesetState = 'ok' | 'degraded' | 'unavailable' | 'unmanaged';
 export async function reconcileManagedGate(
   octokit: InstallationOctokit,
   log: Logger,
-  input: { owner: string; repo: string; checkName: string },
+  input: { owner: string; repo: string; checkName: string; integrationId?: number },
 ): Promise<{ state: RulesetState; rulesetId: number | null }> {
-  const { owner, repo, checkName } = input;
+  const { owner, repo, checkName, integrationId } = input;
   try {
     const list = await octokit.rest.repos.getRepoRulesets({ owner, repo });
     const existing = list.data.find((r) => r.name === RULESET_NAME);
@@ -34,7 +34,10 @@ export async function reconcileManagedGate(
           type: 'required_status_checks' as const,
           parameters: {
             strict_required_status_checks_policy: false,
-            required_status_checks: [{ context: checkName }],
+            required_status_checks: [{
+              context: checkName,
+              ...(integrationId === undefined ? {} : { integration_id: integrationId }),
+            }],
           },
         },
       ],

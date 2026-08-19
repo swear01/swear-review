@@ -1,10 +1,9 @@
 /** SQLite schema (SQL) and versioned migrations. Uses node:sqlite (built into Node >= 24). */
 
-export const SCHEMA_VERSION = 1;
-
 export const MIGRATIONS: string[] = [
   // v1 — initial schema
   `
+  BEGIN;
   CREATE TABLE IF NOT EXISTS installations (
     id INTEGER PRIMARY KEY,
     account_login TEXT NOT NULL,
@@ -128,6 +127,35 @@ export const MIGRATIONS: string[] = [
   CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER NOT NULL
   );
-  INSERT OR IGNORE INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+  INSERT OR IGNORE INTO schema_version (version) VALUES (1);
+  COMMIT;
+  `,
+
+  // v2 — one-of-many provider gate state
+  `
+  BEGIN;
+  CREATE TABLE IF NOT EXISTS review_gates (
+    repo_owner TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    head_sha TEXT NOT NULL,
+    check_run_id INTEGER NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (repo_owner, repo_name, pr_number, head_sha)
+  );
+  CREATE INDEX IF NOT EXISTS idx_review_gates_repo_pr ON review_gates(repo_owner, repo_name, pr_number, updated_at);
+
+  INSERT OR IGNORE INTO schema_version (version) VALUES (2);
+  COMMIT;
+  `,
+
+  // v3 — persist provider gate lifecycle state so completed check runs are never reopened
+  `
+  BEGIN;
+  ALTER TABLE review_gates ADD COLUMN status TEXT NOT NULL DEFAULT 'legacy';
+  ALTER TABLE review_gates ADD COLUMN conclusion TEXT;
+
+  INSERT OR IGNORE INTO schema_version (version) VALUES (3);
+  COMMIT;
   `,
 ];

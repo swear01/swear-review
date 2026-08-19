@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { MIGRATIONS } from './migrations.js';
-import type { JobRecord, JobStatus, RunRecord, RunStatus, ReviewMode } from '../types.js';
+import type { JobRecord, JobStatus, ReviewGateState, RunRecord, RunStatus, ReviewMode, StoredReviewGateState } from '../types.js';
 
 /**
  * Thin persistence layer on top of node:sqlite (synchronous — safe for the
@@ -32,7 +32,16 @@ export class Database {
       version = (this.db.prepare('SELECT MAX(version) AS v FROM schema_version').get() as { v: number }).v;
     }
     for (let i = version; i < MIGRATIONS.length; i++) {
-      this.db.exec(MIGRATIONS[i]!);
+      try {
+        this.db.exec(MIGRATIONS[i]!);
+      } catch (err) {
+        try {
+          this.db.exec('ROLLBACK');
+        } catch {
+          // Ignore rollback errors when the migration did not open a transaction.
+        }
+        throw err;
+      }
     }
   }
 
@@ -135,6 +144,53 @@ export class Database {
            updated_at=excluded.updated_at`
       )
       .run(owner, name, prNumber, headSha, lastReviewed, lastSuccessful, lastFull, now);
+  }
+
+  listOpenPullRequestsByHeadSha(owner: string, name: string, headSha: string): Array<{ pr_number: number; installation_id: number }> {
+    const rows = this.db
+      .prepare(
+        `SELECT p.pr_number, r.installation_id
+         FROM pull_requests p
+         JOIN repositories r ON r.owner = p.repo_owner AND r.name = p.repo_name
+         WHERE p.repo_owner=? AND p.repo_name=? AND p.head_sha=? AND p.state=?`
+      )
+      .all(owner, name, headSha, 'open');
+    return rows as Array<{ pr_number: number; installation_id: number }>;
+  }
+
+  // ---- review gates --------------------------------------------------------
+
+  getReviewGate(owner: string, name: string, prNumber: number, headSha: string): ({ check_run_id: number } & StoredReviewGateState) | null {
+    const row = this.db
+      .prepare(
+        `SELECT check_run_id, status, conclusion FROM review_gates
+         WHERE repo_owner=? AND repo_name=? AND pr_number=? AND head_sha=?`
+      )
+      .get(owner, name, prNumber, headSha) as {
+        check_run_id: number;
+        status: string;
+        conclusion: string | null;
+      } | undefined;
+    if (!row) return null;
+    if (row.status === 'in_progress') return { check_run_id: row.check_run_id, status: 'in_progress', conclusion: null };
+    if (row.status === 'completed' && (row.conclusion === 'success' || row.conclusion === 'failure')) {
+      return { check_run_id: row.check_run_id, status: 'completed', conclusion: row.conclusion };
+    }
+    return { check_run_id: row.check_run_id, status: 'legacy', conclusion: null };
+  }
+
+  setReviewGate(owner: string, name: string, prNumber: number, headSha: string, checkRunId: number, state: ReviewGateState): void {
+    this.db
+      .prepare(
+        `INSERT INTO review_gates (repo_owner, repo_name, pr_number, head_sha, check_run_id, status, conclusion, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(repo_owner, repo_name, pr_number, head_sha) DO UPDATE SET
+           check_run_id=excluded.check_run_id,
+           status=excluded.status,
+           conclusion=excluded.conclusion,
+           updated_at=excluded.updated_at`
+      )
+      .run(owner, name, prNumber, headSha, checkRunId, state.status, state.conclusion, new Date().toISOString());
   }
 
   // ---- repository state ----------------------------------------------------
