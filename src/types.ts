@@ -40,6 +40,12 @@ export type CheckConclusion =
   | 'timed_out'
   | 'action_required';
 
+export type ReviewGateState =
+  | { status: 'in_progress'; conclusion: null }
+  | { status: 'completed'; conclusion: 'success' | 'failure' };
+
+export type StoredReviewGateState = ReviewGateState | { status: 'legacy'; conclusion: null };
+
 /** Parsed + validated OCR review result (see tests/fixtures/ocr-v1.9.0.json). */
 export interface OcrResult {
   status: string;

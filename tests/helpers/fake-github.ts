@@ -145,8 +145,12 @@ export class FakeGitHubApi implements GitHubApi {
             const run = self.checkRuns.find((r) => r.id === Number(p.check_run_id));
             if (!run) throw Object.assign(new Error(`check run ${String(p.check_run_id)} not found`), { status: 404 });
             run.status = String(p.status);
-            run.conclusion = (p.conclusion as string | null | undefined) ?? run.conclusion;
-            if (p.completed_at !== undefined) run.completed_at = String(p.completed_at);
+            if (p.conclusion !== undefined) {
+              run.conclusion = p.conclusion as string | null;
+            } else if (p.status === 'in_progress') {
+              run.conclusion = null;
+            }
+            if (p.completed_at !== undefined) run.completed_at = p.completed_at == null ? null : String(p.completed_at);
             return { data: {} };
           }),
           listForRef: fakeEndpoint('checks.listForRef', (n, p) => self.record(n, p), (p) => {
@@ -170,18 +174,10 @@ export class FakeGitHubApi implements GitHubApi {
           listCommitStatusesForRef: fakeEndpoint('repos.listCommitStatusesForRef', (n, p) => self.record(n, p), (p) => {
             const page = Number(p.page ?? 1);
             const perPage = Number(p.per_page ?? 100);
-            const all = self.commitStatuses.filter((s) => !s.sha || s.sha === String(p.ref));
+            const all = self.commitStatuses.filter((s) => s.sha === String(p.ref));
             return { data: all.slice((page - 1) * perPage, page * perPage) };
           }),
         },
-      },
-      paginate: async (
-        endpoint: (params: Record<string, unknown>) => Promise<{ data: unknown }>,
-        params: Record<string, unknown>,
-      ) => {
-        const response = await endpoint(params);
-        const data = response.data as { check_runs?: unknown[] } | unknown[];
-        return Array.isArray(data) ? data : data.check_runs ?? [];
       },
     };
   }

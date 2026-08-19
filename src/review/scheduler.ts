@@ -79,10 +79,14 @@ export class Scheduler {
       }
     } catch (err) {
       const existing = this.ctx.db.getPullRequest(owner, name, prNumber);
-      if (existing?.head_sha && existing.head_sha !== headSha) {
+      const latestJob = this.ctx.db.getLatestJob(owner, name, prNumber);
+      const activeStoredHead = existing?.head_sha
+        && latestJob?.head_sha === existing.head_sha
+        && ['queued', 'running', 'cancelling'].includes(latestJob.status);
+      if (activeStoredHead && existing.head_sha !== headSha) {
         this.ctx.log.warn(
           { repo: `${owner}/${name}`, pr: prNumber, eventHeadSha: headSha, storedHeadSha: existing.head_sha },
-          'could not revalidate stale pull_request event; ignoring because a different head is already stored',
+          'could not revalidate pull_request event; ignoring because a different head has an active review',
         );
         return;
       }
@@ -316,7 +320,10 @@ export class Scheduler {
         prNumber: row.pr_number,
         headSha,
         resolved,
-      });
+      }, { manageRuleset: false });
+    }
+    if (rows[0]) {
+      await this.reconcileManagedGate({ installationId: rows[0].installation_id, owner, repo: name, resolved });
     }
   }
 
@@ -332,7 +339,8 @@ export class Scheduler {
     if (resolved.gate.mode === 'off' || resolved.gate.strategy !== 'any') return;
     if (!resolved.gate.providers.some((provider) => provider.type === 'status' && provider.context === context)) return;
 
-    for (const row of this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha)) {
+    const rows = this.ctx.db.listOpenPullRequestsByHeadSha(owner, name, headSha);
+    for (const row of rows) {
       await this.reconcileConfiguredGate({
         installationId: row.installation_id,
         owner,
@@ -340,18 +348,24 @@ export class Scheduler {
         prNumber: row.pr_number,
         headSha,
         resolved,
-      });
+      }, { manageRuleset: false });
+    }
+    if (rows[0]) {
+      await this.reconcileManagedGate({ installationId: rows[0].installation_id, owner, repo: name, resolved });
     }
   }
 
-  private async reconcileConfiguredGate(input: {
-    installationId: number;
-    owner: string;
-    repo: string;
-    prNumber: number;
-    headSha: string;
-    resolved: ReturnType<typeof resolveRepoConfig>;
-  }): Promise<void> {
+  private async reconcileConfiguredGate(
+    input: {
+      installationId: number;
+      owner: string;
+      repo: string;
+      prNumber: number;
+      headSha: string;
+      resolved: ReturnType<typeof resolveRepoConfig>;
+    },
+    options: { manageRuleset?: boolean } = {},
+  ): Promise<void> {
     if (input.resolved.gate.mode === 'off' || input.resolved.gate.strategy !== 'any') return;
 
     try {
@@ -368,19 +382,29 @@ export class Scheduler {
       this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'provider gate reconciliation failed');
     }
 
-    if (input.resolved.gate.mode === 'managed') {
-      try {
-        await reconcileGateForRepository(this.ctx.github, this.ctx.db, this.ctx.log, {
-          installationId: input.installationId,
-          owner: input.owner,
-          repo: input.repo,
-          gateMode: input.resolved.gate.mode,
-          checkName: input.resolved.gate.check_name,
-          integrationId: input.resolved.gate.integration_id,
-        });
-      } catch (err) {
-        this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}`, pr: input.prNumber }, 'managed gate reconciliation failed');
-      }
+    if (options.manageRuleset !== false) {
+      await this.reconcileManagedGate(input);
+    }
+  }
+
+  private async reconcileManagedGate(input: {
+    installationId: number;
+    owner: string;
+    repo: string;
+    resolved: ReturnType<typeof resolveRepoConfig>;
+  }): Promise<void> {
+    if (input.resolved.gate.mode !== 'managed') return;
+    try {
+      await reconcileGateForRepository(this.ctx.github, this.ctx.db, this.ctx.log, {
+        installationId: input.installationId,
+        owner: input.owner,
+        repo: input.repo,
+        gateMode: input.resolved.gate.mode,
+        checkName: input.resolved.gate.check_name,
+        integrationId: input.resolved.gate.integration_id,
+      });
+    } catch (err) {
+      this.ctx.log.warn({ err: (err as Error).message, repo: `${input.owner}/${input.repo}` }, 'managed gate reconciliation failed');
     }
   }
 

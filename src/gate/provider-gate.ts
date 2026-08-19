@@ -84,6 +84,7 @@ export async function reconcileProviderGate(
 
     let checkRunId = previous?.check_run_id ?? null;
     const needsNewCheckRun = checkRunId === null
+      || previous?.status === 'legacy'
       || (previous?.status === 'completed' && decision.status === 'in_progress')
       || (previous?.status === 'completed' && decision.status === 'completed' && previous.conclusion !== decision.conclusion);
 
@@ -98,7 +99,7 @@ export async function reconcileProviderGate(
       });
       createdCheckRun = true;
       try {
-        db.setReviewGate(input.owner, input.repo, input.prNumber, input.headSha, checkRunId, 'in_progress', null);
+        db.setReviewGate(input.owner, input.repo, input.prNumber, input.headSha, checkRunId, { status: 'in_progress', conclusion: null });
       } catch (err) {
         await completeCheckRun(octokit, log, {
           owner: input.owner,
@@ -149,8 +150,9 @@ export async function reconcileProviderGate(
         input.prNumber,
         input.headSha,
         checkRunId,
-        decision.status,
-        decision.status === 'completed' ? decision.conclusion : null,
+        decision.status === 'completed'
+          ? { status: 'completed', conclusion: decision.conclusion }
+          : { status: 'in_progress', conclusion: null },
       );
     } catch (err) {
       if (createdCheckRun && decision.status === 'completed' && !completedCheckRun) {

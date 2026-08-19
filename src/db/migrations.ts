@@ -1,7 +1,5 @@
 /** SQLite schema (SQL) and versioned migrations. Uses node:sqlite (built into Node >= 24). */
 
-export const SCHEMA_VERSION = 3;
-
 export const MIGRATIONS: string[] = [
   // v1 — initial schema
   `
@@ -149,9 +147,11 @@ export const MIGRATIONS: string[] = [
 
   // v3 — persist provider gate lifecycle state so completed check runs are never reopened
   `
-  ALTER TABLE review_gates ADD COLUMN status TEXT NOT NULL DEFAULT 'completed';
+  BEGIN;
+  ALTER TABLE review_gates ADD COLUMN status TEXT NOT NULL DEFAULT 'legacy';
   ALTER TABLE review_gates ADD COLUMN conclusion TEXT;
 
-  INSERT OR IGNORE INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+  INSERT OR IGNORE INTO schema_version (version) VALUES (3);
+  COMMIT;
   `,
 ];
