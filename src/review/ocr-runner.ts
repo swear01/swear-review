@@ -80,6 +80,14 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 
   let timedOut = false;
   let killedBySignal = false;
+  let forceKill: NodeJS.Timeout | undefined;
+  child.once('exit', () => {
+    if (timedOut || killedBySignal) {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }
+    if (forceKill && !processGroupExists(child)) clearTimeout(forceKill);
+  });
   const hardKill = setTimeout(() => {
     timedOut = true;
     killProcessGroup(child, 'SIGKILL');
@@ -89,7 +97,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
   const abortHandler = () => {
     killedBySignal = true;
     killProcessGroup(child, 'SIGTERM');
-    setTimeout(() => {
+    forceKill = setTimeout(() => {
       killProcessGroup(child, 'SIGKILL');
     }, 5000).unref();
   };
@@ -126,8 +134,6 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 }
 
 function killProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
-  child.stdout?.destroy();
-  child.stderr?.destroy();
   if (process.platform !== 'win32' && child.pid) {
     try {
       process.kill(-child.pid, signal);
@@ -137,6 +143,16 @@ function killProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
     }
   }
   child.kill(signal);
+}
+
+function processGroupExists(child: ChildProcess): boolean {
+  if (process.platform === 'win32' || !child.pid) return false;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
 }
 
 export function createOcrHome(workspaceDir: string): string {

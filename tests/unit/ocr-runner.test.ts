@@ -31,7 +31,7 @@ describe('runOcr', () => {
         headSha: 'b'.repeat(40),
         concurrency: 4,
         timeoutMinutes: 10,
-        hardTimeoutMinutes: abort ? 1 : 0.01,
+        hardTimeoutMinutes: abort ? 1 : 0.05,
         binary: helper,
         repoDir: root,
         homeDir: root,
@@ -48,7 +48,8 @@ describe('runOcr', () => {
 
       expect(result.killed).toBe(true);
       expect(result.timedOut).toBe(!abort);
-      expect(Date.now() - startedAt).toBeLessThan(1000);
+      expect(result.stdout).toContain('started');
+      expect(Date.now() - startedAt).toBeLessThan(abort ? 1000 : 4000);
       if (process.platform !== 'win32') {
         const killDeadline = Date.now() + 6000;
         while (Date.now() < killDeadline) {

@@ -2,6 +2,7 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
+process.stdout.write('started\n');
 const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); process.send("ready"); setTimeout(() => {}, 30000)'], {
   stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
 });
