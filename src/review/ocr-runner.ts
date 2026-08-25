@@ -128,6 +128,8 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 }
 
 function killProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  child.stdout?.destroy();
+  child.stderr?.destroy();
   if (process.platform !== 'win32' && child.pid) {
     try {
       process.kill(-child.pid, signal);

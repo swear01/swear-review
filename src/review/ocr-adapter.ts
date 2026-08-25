@@ -61,7 +61,7 @@ const OcrManifestSchema = z
         reused: z.array(z.object({ path: z.string() })).optional(),
         failed: z.array(z.object({
           path: z.string(),
-          classification: OcrFailureClassSchema,
+          classification: OcrFailureClassSchema.default('unknown'),
           reason: z.string().optional(),
         })).optional(),
         waived: z.array(z.object({ path: z.string() })).optional(),

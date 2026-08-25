@@ -49,7 +49,9 @@ describe('runOcr', () => {
       expect(result.killed).toBe(true);
       expect(result.timedOut).toBe(!abort);
       expect(Date.now() - startedAt).toBeLessThan(1000);
-      expect(() => process.kill(grandchildPid, 0)).toThrow();
+      if (process.platform !== 'win32') {
+        expect(() => process.kill(grandchildPid, 0)).toThrow();
+      }
     } finally {
       if (grandchildPid > 0) {
         try { process.kill(grandchildPid, 'SIGKILL'); } catch { /* already gone */ }

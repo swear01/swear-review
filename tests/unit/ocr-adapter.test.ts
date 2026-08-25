@@ -68,6 +68,18 @@ describe('parseOcrOutput', () => {
     expect(result.coverage?.failures).toEqual(failures);
   });
 
+  it('classifies legacy failures without a classification as unknown', () => {
+    const result = parseOcrOutput(JSON.stringify({
+      status: 'partial',
+      comments: [],
+      manifest: { coverage: { failed: [{ path: 'legacy.ts', reason: 'old OCR output' }] } },
+    }));
+
+    expect(result.coverage?.failures).toEqual([
+      { path: 'legacy.ts', classification: 'unknown', reason: 'old OCR output' },
+    ]);
+  });
+
   it('accepts the real v1.9.0 skipped fixture (docs-only PR, no items selected)', () => {
     const raw = readFileSync(skippedFixturePath, 'utf8');
     const result = parseOcrOutput(raw);
