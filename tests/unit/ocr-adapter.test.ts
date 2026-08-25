@@ -52,6 +52,22 @@ describe('parseOcrOutput', () => {
     expect(result.comments).toEqual([]);
   });
 
+  it('preserves per-file provider, timeout, budget, and panic failures', () => {
+    const failures = [
+      { path: 'provider.ts', classification: 'provider', reason: 'provider unavailable' },
+      { path: 'timeout.ts', classification: 'timeout', reason: 'task deadline exceeded' },
+      { path: 'budget.ts', classification: 'budget', reason: 'token budget exhausted' },
+      { path: 'panic.ts', classification: 'panic', reason: 'review worker panicked' },
+    ];
+    const result = parseOcrOutput(JSON.stringify({
+      status: 'partial',
+      comments: [],
+      manifest: { coverage: { selected: failures, completed: [], failed: failures } },
+    }));
+
+    expect(result.coverage?.failures).toEqual(failures);
+  });
+
   it('accepts the real v1.9.0 skipped fixture (docs-only PR, no items selected)', () => {
     const raw = readFileSync(skippedFixturePath, 'utf8');
     const result = parseOcrOutput(raw);

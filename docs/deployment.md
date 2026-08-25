@@ -99,6 +99,9 @@ The service unit is versioned at
 non-root `ubuntu` service user, points at the external data directory, and
 includes the Oracle resource limits. The Oracle deploy script intentionally
 uses these fixed paths and user; its only argument is the Git ref to deploy.
+The service starts reclaiming memory at 4 GiB and is stopped at 5 GiB. This
+leaves headroom for concurrent OCR workers without allowing them to starve the
+other Oracle services.
 
 ### Convert an existing copied deployment
 
@@ -208,6 +211,8 @@ injection risks are understood.
 | `/readyz` fails | database path, permissions, disk space |
 | `MISSING_CREDENTIAL` | `.env`/secret file exists, key name matches config |
 | OCR parse failure | OCR version, raw JSON fixture, adapter contract tests |
+| Partial OCR coverage | inspect `coverage.failures` in the structured `OCR review complete` log for each path, classification, and sanitized reason |
+| Superseded review keeps consuming resources | deploy the process-group cancellation fix; verify the OCR wrapper and descendants exit together |
 | No webhook jobs | public HTTPS URL, App events, HMAC secret, delivery logs |
 | Docs-only PR fails review | OCR output status should be `skipped`; deploy the current adapter |
 | Repeated/stale findings | check reviewed HEAD SHA and deduplication logs |
