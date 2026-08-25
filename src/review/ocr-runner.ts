@@ -80,7 +80,6 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 
   let timedOut = false;
   let killedBySignal = false;
-  let forceKill: NodeJS.Timeout | undefined;
   const hardKill = setTimeout(() => {
     timedOut = true;
     killProcessGroup(child, 'SIGKILL');
@@ -90,7 +89,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
   const abortHandler = () => {
     killedBySignal = true;
     killProcessGroup(child, 'SIGTERM');
-    forceKill = setTimeout(() => {
+    setTimeout(() => {
       killProcessGroup(child, 'SIGKILL');
     }, 5000).unref();
   };
@@ -108,7 +107,6 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
   });
 
   clearTimeout(hardKill);
-  if (forceKill) clearTimeout(forceKill);
   input.signal?.removeEventListener('abort', abortHandler);
 
   const result: OcrProcessResult = {

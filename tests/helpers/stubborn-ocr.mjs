@@ -2,10 +2,10 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 
-const child = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 30000)'], {
-  stdio: ['ignore', 'inherit', 'inherit'],
+const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); process.send("ready"); setTimeout(() => {}, 30000)'], {
+  stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
 });
-writeFileSync(process.env.STUBBORN_PID_FILE, String(child.pid));
+child.once('message', () => writeFileSync(process.env.STUBBORN_PID_FILE, String(child.pid)));
 
 process.on('SIGTERM', () => process.exit(0));
 setInterval(() => {}, 1000);

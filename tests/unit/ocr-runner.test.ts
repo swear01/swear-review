@@ -50,6 +50,15 @@ describe('runOcr', () => {
       expect(result.timedOut).toBe(!abort);
       expect(Date.now() - startedAt).toBeLessThan(1000);
       if (process.platform !== 'win32') {
+        const killDeadline = Date.now() + 6000;
+        while (Date.now() < killDeadline) {
+          try {
+            process.kill(grandchildPid, 0);
+            await new Promise((resolve) => setTimeout(resolve, 25));
+          } catch {
+            break;
+          }
+        }
         expect(() => process.kill(grandchildPid, 0)).toThrow();
       }
     } finally {
