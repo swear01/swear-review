@@ -5,7 +5,12 @@ import { writeFileSync } from 'node:fs';
 const child = spawn(process.execPath, ['-e', 'process.on("SIGTERM", () => {}); process.send("ready"); setTimeout(() => {}, 30000)'], {
   stdio: ['ignore', 'inherit', 'inherit', 'ipc'],
 });
-child.once('message', () => writeFileSync(process.env.STUBBORN_PID_FILE, String(child.pid)));
+child.once('message', () => {
+  const pidFile = process.env.STUBBORN_PID_FILE;
+  if (!pidFile) process.exit(1);
+  writeFileSync(pidFile, String(child.pid));
+});
+child.on('error', () => process.exit(1));
 
 process.on('SIGTERM', () => process.exit(0));
 setInterval(() => {}, 1000);
