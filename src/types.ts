@@ -46,6 +46,22 @@ export type ReviewGateState =
 
 export type StoredReviewGateState = ReviewGateState | { status: 'legacy'; conclusion: null };
 
+export type OcrFailureClass =
+  | 'provider'
+  | 'timeout'
+  | 'cancelled'
+  | 'configuration'
+  | 'input'
+  | 'budget'
+  | 'panic'
+  | 'unknown';
+
+export interface OcrFailure {
+  path: string;
+  classification: OcrFailureClass;
+  reason?: string;
+}
+
 /** Parsed + validated OCR review result (see tests/fixtures/ocr-v1.9.0.json). */
 export interface OcrResult {
   status: string;
@@ -69,6 +85,7 @@ export interface OcrResult {
     reused: number;
     failed: number;
     waived: number;
+    failures: OcrFailure[];
   };
   elapsedMs?: number;
   toolCalls?: { total: number; byTool: Record<string, number> };

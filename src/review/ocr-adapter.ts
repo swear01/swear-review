@@ -21,6 +21,17 @@ const OcrCommentSchema = z.object({
   severity: z.string().optional(),
 });
 
+const OcrFailureClassSchema = z.enum([
+  'provider',
+  'timeout',
+  'cancelled',
+  'configuration',
+  'input',
+  'budget',
+  'panic',
+  'unknown',
+]);
+
 const OcrManifestSchema = z
   .object({
     schema_version: z.string().optional(),
@@ -48,7 +59,11 @@ const OcrManifestSchema = z
         selected: z.array(z.object({ path: z.string() })).optional(),
         completed: z.array(z.object({ path: z.string() })).optional(),
         reused: z.array(z.object({ path: z.string() })).optional(),
-        failed: z.array(z.object({ path: z.string(), classification: z.string().optional(), reason: z.string().optional() })).optional(),
+        failed: z.array(z.object({
+          path: z.string(),
+          classification: OcrFailureClassSchema.default('unknown'),
+          reason: z.string().optional(),
+        })).optional(),
         waived: z.array(z.object({ path: z.string() })).optional(),
       })
       .optional(),
@@ -148,6 +163,7 @@ export function parseOcrOutput(raw: string): OcrResult {
           reused: coverage.reused?.length ?? 0,
           failed: coverage.failed?.length ?? 0,
           waived: coverage.waived?.length ?? 0,
+          failures: coverage.failed ?? [],
         }
       : undefined,
     elapsedMs: d.manifest?.elapsed_ms,

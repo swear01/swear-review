@@ -14,8 +14,8 @@ Restart=always
 RestartSec=5
 
 # Oracle resource limits: keep a full review from starving the host.
-MemoryHigh=2G
-MemoryMax=3G
+MemoryHigh=4G
+MemoryMax=5G
 MemorySwapMax=0
 CPUQuota=100%
 TasksMax=64

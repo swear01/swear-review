@@ -59,6 +59,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
       cwd: input.repoDir,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
       windowsHide: true,
     });
   } catch (err) {
@@ -79,17 +80,25 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 
   let timedOut = false;
   let killedBySignal = false;
+  let forceKill: NodeJS.Timeout | undefined;
+  child.once('exit', () => {
+    if (timedOut || killedBySignal) {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }
+    if (forceKill && !processGroupExists(child)) clearTimeout(forceKill);
+  });
   const hardKill = setTimeout(() => {
     timedOut = true;
-    child.kill('SIGKILL');
+    killProcessGroup(child, 'SIGKILL');
   }, input.hardTimeoutMinutes * 60_000);
   hardKill.unref();
 
   const abortHandler = () => {
     killedBySignal = true;
-    child.kill('SIGTERM');
-    setTimeout(() => {
-      if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    killProcessGroup(child, 'SIGTERM');
+    forceKill = setTimeout(() => {
+      killProcessGroup(child, 'SIGKILL');
     }, 5000).unref();
   };
   input.signal?.addEventListener('abort', abortHandler, { once: true });
@@ -122,6 +131,28 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     'ocr process finished',
   );
   return result;
+}
+
+function killProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (process.platform !== 'win32' && child.pid) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ESRCH') return;
+    }
+  }
+  child.kill(signal);
+}
+
+function processGroupExists(child: ChildProcess): boolean {
+  if (process.platform === 'win32' || !child.pid) return false;
+  try {
+    process.kill(-child.pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== 'ESRCH';
+  }
 }
 
 export function createOcrHome(workspaceDir: string): string {
