@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   docker-verify:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || 'mazu-ci' }}
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
       CI_HOST: 127.0.0.1
