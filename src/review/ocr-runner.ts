@@ -54,7 +54,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     ...input.ocrEnv,
   };
   const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
-  if (/(?:^|,)\s*x-opencode-session\s*=/i.test(extraHeaders)) {
+  if (/(?:^|,)\s*x-opencode-session\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
     throw new Error('x-opencode-session is managed per review; remove it from OCR_LLM_EXTRA_HEADERS');
   }
   env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${randomUUID()}`].filter(Boolean).join(',');

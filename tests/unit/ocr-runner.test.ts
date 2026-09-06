@@ -23,14 +23,14 @@ describe('runOcr', () => {
     const input = {
       baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 4,
       timeoutMinutes: 10, hardTimeoutMinutes: 1, binary, repoDir: root, homeDir: root,
-      ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom="one,two"' }, log: createLogger('silent'),
+      ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom="one,x-opencode-session=two"' }, log: createLogger('silent'),
     };
     const runs = await Promise.all([runOcr(input), runOcr(input)]);
     for (const run of runs) {
       expect(run.exitCode).toBe(0);
       const [first, second] = run.stdout.trim().split('\n');
       expect(first).toBe(second);
-      expect(first).toMatch(/^X-Custom="one,two",x-opencode-session=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(first).toMatch(/^X-Custom="one,x-opencode-session=two",x-opencode-session=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     }
     expect(runs[0].stdout).not.toBe(runs[1].stdout);
     await expect(runOcr({ ...input, ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom=yes, X-OpenCode-Session=shared' } }))
