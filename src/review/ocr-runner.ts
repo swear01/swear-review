@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import type { Logger } from '../util/logger.js';
 
@@ -52,6 +53,11 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     NO_COLOR: '1',
     ...input.ocrEnv,
   };
+  const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
+  if (/(?:^|,)\s*x-opencode-session\s*=/i.test(extraHeaders)) {
+    throw new Error('x-opencode-session is managed per review; remove it from OCR_LLM_EXTRA_HEADERS');
+  }
+  env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${randomUUID()}`].filter(Boolean).join(',');
 
   let child: ChildProcess;
   try {

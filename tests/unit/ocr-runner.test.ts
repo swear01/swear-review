@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,26 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('runOcr', () => {
+  it('gives each OCR process a stable, distinct session header while preserving extra headers', async () => {
+    const binary = path.join(root, 'headers.mjs');
+    writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(process.env.OCR_LLM_EXTRA_HEADERS); console.log(process.env.OCR_LLM_EXTRA_HEADERS);\n', { mode: 0o755 });
+    const input = {
+      baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 4,
+      timeoutMinutes: 10, hardTimeoutMinutes: 1, binary, repoDir: root, homeDir: root,
+      ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom="one,two"' }, log: createLogger('silent'),
+    };
+    const runs = await Promise.all([runOcr(input), runOcr(input)]);
+    for (const run of runs) {
+      expect(run.exitCode).toBe(0);
+      const [first, second] = run.stdout.trim().split('\n');
+      expect(first).toBe(second);
+      expect(first).toMatch(/^X-Custom="one,two",x-opencode-session=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    }
+    expect(runs[0].stdout).not.toBe(runs[1].stdout);
+    await expect(runOcr({ ...input, ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom=yes, X-OpenCode-Session=shared' } }))
+      .rejects.toThrow('managed per review');
+  });
+
   it.each([
     ['aborted', true],
     ['hard timeout expires', false],
