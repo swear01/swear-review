@@ -165,6 +165,7 @@ export class Worker {
         timeoutMinutes: resolved.ocr.timeout_minutes,
         hardTimeoutMinutes: resolved.ocr.hard_timeout_minutes,
         binary: this.ctx.config.ocr.binary || 'ocr',
+        toolsFile: resolved.ocr.tools_file,
         repoDir: checkout.repoDir,
         homeDir,
         ocrEnv: {

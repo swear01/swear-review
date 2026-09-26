@@ -152,6 +152,9 @@ ocr:
   concurrency: 16       # fixed per deployment; no adaptive fallback
   timeout_minutes: 15
   hard_timeout_minutes: 45
+  # Optional: use the bundled tool set without code_search for repositories
+  # where large search results exhaust the model context.
+  # tools_file: /app/config/ocr-tools-no-search.json
 
 publication:
   deduplicate: true
@@ -174,6 +177,8 @@ gate:
 `ocr.concurrency` is fixed for each process configuration; the service does not
 silently fall back from 16 to 8 or 4. Smaller deployments may choose a lower
 explicit value after measuring their memory and provider limits.
+The bundled tool file is derived from Alibaba Open Code Review v1.12.9's
+`tools.json`; its Apache 2.0 license is in `config/LICENSE-ocr-tools.txt`.
 
 Repository overrides use the precedence:
 

@@ -98,6 +98,8 @@ const OcrConfigSchema = z
     concurrency: z.number().int().min(1).default(16),
     /** OCR binary name/path. Defaults to `ocr` on PATH. */
     binary: z.string().default('ocr'),
+    /** Optional OCR tool definitions file. */
+    tools_file: z.string().optional(),
     /** Per-task timeout in minutes passed to `ocr review --timeout`. */
     timeout_minutes: z.number().int().min(1).default(15),
     /** Overall process kill timeout in minutes (guard against hangs). */

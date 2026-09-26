@@ -19,6 +19,7 @@ export interface OcrRunInput {
   timeoutMinutes: number;
   hardTimeoutMinutes: number;
   binary: string;
+  toolsFile?: string;
   repoDir: string;
   /** isolated HOME for the OCR process (sessions, update state) */
   homeDir: string;
@@ -44,6 +45,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     '--audience', 'agent',
     '--timeout', String(input.timeoutMinutes),
     '--repo', input.repoDir,
+    ...(input.toolsFile ? ['--tools', input.toolsFile] : []),
   ];
 
   const env: NodeJS.ProcessEnv = {

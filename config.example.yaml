@@ -26,6 +26,8 @@ ocr:
   concurrency: 16
   # `ocr` binary on PATH, or an absolute path
   binary: "ocr"
+  # Optional tool definitions; use an absolute path available inside the service.
+  # tools_file: "/app/config/ocr-tools-no-search.json"
   # Per-file task timeout passed to `ocr review --timeout`
   timeout_minutes: 15
   # Hard kill after this many minutes (guard against hangs)
