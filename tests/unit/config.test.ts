@@ -4,7 +4,8 @@ import { parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/
 describe('parseConfig', () => {
   it('applies safe defaults for empty config', () => {
     const c = parseConfig('');
-    expect(c.ocr.version).toBe('1.9.0');
+    expect(c.ocr.version).toBe('1.12.9');
+    expect(c.ocr.timeout_minutes).toBe(15);
     expect(c.ocr.concurrency).toBe(16);
     expect(c.llm.model).toBe('deepseek-v4-flash');
     expect(c.llm.url).toBe('https://opencode.ai/zen/go/v1/chat/completions');

@@ -6,6 +6,7 @@ import { parseOcrOutput, OcrSchemaError } from '../../src/review/ocr-adapter.js'
 
 const fixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0.json');
 const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-skipped.json');
+const latestSkippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.12.9-skipped.json');
 
 describe('parseOcrOutput', () => {
   it('parses the real v1.9.0 fixture (contract test)', () => {
@@ -88,5 +89,12 @@ describe('parseOcrOutput', () => {
     expect(result.comments).toEqual([]);
     expect(result.summary?.comments).toBe(0);
     expect(result.summary?.filesReviewed).toBe(0);
+  });
+
+  it('accepts the real v1.12.9 skipped fixture', () => {
+    const result = parseOcrOutput(readFileSync(latestSkippedFixturePath, 'utf8'));
+    expect(result.status).toBe('skipped');
+    expect(result.ocrVersion).toBe('v1.12.9');
+    expect(result.coverage?.selected).toBe(0);
   });
 });

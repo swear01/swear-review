@@ -21,13 +21,13 @@ review:
 
 ocr:
   # Pinned release. Upgrade only after running the contract tests.
-  version: "1.9.0"
+  version: "1.12.9"
   # Fixed per deployment; default 16, no adaptive fallback.
   concurrency: 16
   # `ocr` binary on PATH, or an absolute path
   binary: "ocr"
   # Per-file task timeout passed to `ocr review --timeout`
-  timeout_minutes: 10
+  timeout_minutes: 15
   # Hard kill after this many minutes (guard against hangs)
   hard_timeout_minutes: 45
   # Extra env vars for the OCR process (no secrets here)

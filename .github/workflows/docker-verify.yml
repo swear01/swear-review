@@ -2,7 +2,7 @@ name: Docker verification
 
 # Builds the production Docker image from scratch and verifies:
 #   - Git >= 2.41 (OCR requirement, asserted in the Dockerfile AND here)
-#   - OCR 1.9.0 is installed
+#   - OCR 1.12.9 is installed
 #   - the container boots with dummy config and /healthz + /readyz respond
 # Fails on any image/build/runtime problem.
 
@@ -54,13 +54,13 @@ jobs:
             exit 1
           fi
 
-      - name: Assert OCR 1.9.0
+      - name: Assert OCR 1.12.9
         run: |
           set -euo pipefail
           ov=$(docker run --rm --entrypoint ocr swear-review:ci version)
           echo "ocr: $ov"
-          if echo "$ov" | grep -q '1.9.0'; then
-            echo "PASS: OCR 1.9.0"
+          if echo "$ov" | grep -q '1.12.9'; then
+            echo "PASS: OCR 1.12.9"
           else
             echo "FAIL: OCR version mismatch"
             exit 1

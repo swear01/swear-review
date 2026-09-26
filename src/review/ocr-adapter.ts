@@ -3,7 +3,7 @@ import type { Finding, OcrResult } from '../types.js';
 
 /**
  * Contract for OCR `--format json` output, validated against a real
- * v1.9.0 capture (tests/fixtures/ocr-v1.9.0.json).
+ * v1.9.0 and v1.12.9 captures (tests/fixtures/).
  *
  * If OCR ships an incompatible schema, parsing fails loudly here — Swear
  * Review never silently forwards an unknown structure to GitHub.

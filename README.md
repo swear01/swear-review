@@ -46,7 +46,7 @@ checkout → queue → OCR 1.9.x → findings
 | GitHub | `@octokit/app`, `@octokit/webhooks` |
 | HTTP | Fastify |
 | Persistence | SQLite (`node:sqlite`) |
-| Review engine | `@alibaba-group/open-code-review@1.9.0` |
+| Review engine | `@alibaba-group/open-code-review@1.12.9` |
 | Model endpoint | OpenCode Go by default, `deepseek-v4-flash` |
 | Deployment | Docker Compose or a systemd service |
 
@@ -148,9 +148,9 @@ review:
     ready_for_review: true
 
 ocr:
-  version: "1.9.0"
+  version: "1.12.9"
   concurrency: 16       # fixed per deployment; no adaptive fallback
-  timeout_minutes: 10
+  timeout_minutes: 15
   hard_timeout_minutes: 45
 
 publication:

@@ -62,7 +62,7 @@ export interface OcrFailure {
   reason?: string;
 }
 
-/** Parsed + validated OCR review result (see tests/fixtures/ocr-v1.9.0.json). */
+/** Parsed + validated OCR review result (see tests/fixtures/). */
 export interface OcrResult {
   status: string;
   model?: string;

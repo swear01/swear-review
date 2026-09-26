@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Mock OCR binary for tests. Emits the pinned v1.9.0-style JSON manifest and
+// Mock OCR binary for tests. Emits a v1.9.0-style JSON manifest and
 // echoes the exact invocation args so tests can assert:
 //   --from <immutable merge-base SHA>  --to <head SHA>  --concurrency 16  --format json
 // Set MOCK_OCR_FAIL=1 to simulate an OCR/LLM infrastructure failure.
