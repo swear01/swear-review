@@ -24,6 +24,23 @@ describe('parseOcrOutput', () => {
     expect(result.coverage?.completed).toBe(1);
   });
 
+  it.each([
+    ['complete', 'complete', 2, 2, undefined],
+    ['failed', 'failed', 1, 0, 'provider'],
+    ['partial', 'partial', 3, 2, 'budget'],
+    ['cancelled', 'failed', 1, 0, 'cancelled'],
+  ] as const)('parses the captured v1.12.9 %s run', (name, status, selected, completed, failure) => {
+    const raw = readFileSync(path.join(path.dirname(fixturePath), `ocr-v1.12.9-${name}.json`), 'utf8');
+    const result = parseOcrOutput(raw);
+    expect(result.status).toBe(status);
+    expect(result.ocrVersion).toBe('v1.12.9');
+    expect(result.coverage?.selected).toBe(selected);
+    expect(result.coverage?.completed).toBe(completed);
+    expect(result.coverage?.failed).toBe(selected - completed);
+    expect(result.coverage?.failures[0]?.classification).toBe(failure);
+    expect(result.comments).toHaveLength(name === 'complete' ? 2 : 0);
+  });
+
   it('maps zero start_line to undefined (unpositioned finding)', () => {
     const raw = JSON.stringify({
       status: 'complete',

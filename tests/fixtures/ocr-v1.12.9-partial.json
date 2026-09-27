@@ -1,0 +1,96 @@
+{
+  "status": "partial",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review partially complete: 0 finding(s); 1 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 0,
+    "total_tokens": 45051,
+    "input_tokens": 40672,
+    "output_tokens": 4379,
+    "cache_read_tokens": 16768,
+    "elapsed": "42s",
+    "budget_exceeded": true
+  },
+  "tool_calls": {
+    "total": 3,
+    "by_tool": {
+      "file_find": 1,
+      "file_read": 1,
+      "file_read_diff": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "session_id": "1d177c6c-e62b-45ae-9c42-a3e553892ce3",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "1d177c6c-e62b-45ae-9c42-a3e553892ce3",
+    "operation": "review",
+    "terminal_state": "partial",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "3c4243cd670086811762a5c4ac23c427300b6054",
+      "requested_head": "037efd3da8982b768098b47fb0ba2c4e2c57753a",
+      "resolved_base": "3c4243cd670086811762a5c4ac23c427300b6054",
+      "resolved_head": "037efd3da8982b768098b47fb0ba2c4e2c57753a",
+      "exact_range": "3c4243cd670086811762a5c4ac23c427300b6054..037efd3da8982b768098b47fb0ba2c4e2c57753a",
+      "source_artifact_sha256": "f8255387b10df76558844674a1d0c4050beded1477bfd7c935209eee7a1c3c83"
+    },
+    "execution": {
+      "ocr_version": "v1.12.9",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "rule_config_sha256": "9f33647a25a002db1b7770ce092ffab8b77ef98379e262871a243afd75f798d9",
+      "runtime_config_sha256": "0d064135659a753b9e081a6a3de8c055e5a1ddc512a5ec48aac0e77f2333a92d"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "1886bd59544db1fab59bd88e6c518ee64848ad7abb14f667a8e18108f3465623",
+          "path": "beta.go",
+          "fingerprint": "9b93e81fbf2d17c003ce3b7872d5fe6e1fe8bb8bcf691cfc70dbf9c07f177502"
+        },
+        {
+          "item_id": "d06109a93b6dd9e628e33de874127f988b83fb66ed164b007d168721c75660fd",
+          "path": "alpha.go",
+          "fingerprint": "d06d7b81fd2b69b1dd4115187d82e53685dce2ff3c65f78568485d747a0723b1"
+        },
+        {
+          "item_id": "d18b9ace0f6704aa7f73a0e352c8ccb8754554282045767647126786d76950a2",
+          "path": "gamma.go",
+          "fingerprint": "2676bc7b441f8dddcfc51e278b6a0b39583ef0e3850e18626260f6a3053e158b"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "1886bd59544db1fab59bd88e6c518ee64848ad7abb14f667a8e18108f3465623",
+          "path": "beta.go",
+          "fingerprint": "9b93e81fbf2d17c003ce3b7872d5fe6e1fe8bb8bcf691cfc70dbf9c07f177502"
+        },
+        {
+          "item_id": "d06109a93b6dd9e628e33de874127f988b83fb66ed164b007d168721c75660fd",
+          "path": "alpha.go",
+          "fingerprint": "d06d7b81fd2b69b1dd4115187d82e53685dce2ff3c65f78568485d747a0723b1"
+        }
+      ],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "d18b9ace0f6704aa7f73a0e352c8ccb8754554282045767647126786d76950a2",
+          "path": "gamma.go",
+          "fingerprint": "2676bc7b441f8dddcfc51e278b6a0b39583ef0e3850e18626260f6a3053e158b",
+          "classification": "budget",
+          "reason": "aggregate token budget reached before dispatch completed"
+        }
+      ],
+      "waived": []
+    },
+    "elapsed_ms": 41886
+  }
+}

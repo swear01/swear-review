@@ -303,6 +303,9 @@ When upgrading OCR:
 5. Only then change the pinned version in `Dockerfile`, `package.json`, and
    `config.example.yaml`.
 
+The `ocr-v1.12.9-*.json` contract fixtures are sanitized captures from isolated
+complete, provider-failed, token-budget partial, cancelled, and skipped runs.
+
 ## Operational endpoints
 
 | Endpoint | Purpose |

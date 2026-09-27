@@ -28,6 +28,11 @@ describe('runOcr', () => {
     });
     const args = JSON.parse(result.stdout) as string[];
     expect(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 2)).toEqual(['--tools', toolsFile]);
+    await expect(runOcr({
+      baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 2,
+      timeoutMinutes: 15, hardTimeoutMinutes: 1, binary, toolsFile: 'relative.json',
+      repoDir: root, homeDir: root, ocrEnv: {}, log: createLogger('silent'),
+    })).rejects.toThrow('OCR tools_file must be an absolute path');
   });
 
   it('gives each OCR process a stable, distinct session header while preserving extra headers', async () => {
