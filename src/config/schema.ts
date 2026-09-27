@@ -1,9 +1,12 @@
+import path from 'node:path';
 import { z } from 'zod';
 
 /**
  * Central configuration schema. The ONLY configuration source for Swear Review.
  * Target repositories never carry any configuration file.
  */
+
+const OCR_VERSION = '1.12.9';
 
 export const GateModeSchema = z.enum(['off', 'check', 'managed']);
 export const GateStrategySchema = z.enum(['single', 'any']);
@@ -93,19 +96,23 @@ const ReviewConfigSchema = z
 const OcrConfigSchema = z
   .object({
     /** Pinned OCR release. Do not change without contract tests. */
-    version: z.string().default('1.9.0'),
+    version: z.string().default(OCR_VERSION),
     /** Fixed OCR concurrency. No adaptive fallback. */
     concurrency: z.number().int().min(1).default(16),
     /** OCR binary name/path. Defaults to `ocr` on PATH. */
     binary: z.string().default('ocr'),
+    /** Optional OCR tool definitions file. */
+    tools_file: z.string()
+      .refine((value) => path.isAbsolute(value), 'OCR tools_file must be an absolute path')
+      .optional(),
     /** Per-task timeout in minutes passed to `ocr review --timeout`. */
-    timeout_minutes: z.number().int().min(1).default(10),
+    timeout_minutes: z.number().int().min(1).default(15),
     /** Overall process kill timeout in minutes (guard against hangs). */
     hard_timeout_minutes: z.number().int().min(1).default(45),
     /** Extra env vars passed to the OCR process (no secrets here). */
     extra_env: z.record(z.string(), z.string()).default({}),
   })
-  .default({ version: '1.9.0', concurrency: 16, binary: 'ocr', timeout_minutes: 10, hard_timeout_minutes: 45, extra_env: {} });
+  .default({ version: OCR_VERSION, concurrency: 16, binary: 'ocr', timeout_minutes: 15, hard_timeout_minutes: 45, extra_env: {} });
 
 const LlmConfigSchema = z
   .object({
@@ -221,7 +228,7 @@ const AppConfigSchema = z
   .default(() => ({
     app: { name: 'Swear Review', check_name: 'Swear Review' },
     review: { auto: true, default_mode: 'full' as const, review_drafts: false, triggers: { ...TRIGGER_DEFAULTS } },
-    ocr: { version: '1.9.0', concurrency: 16, binary: 'ocr', timeout_minutes: 10, hard_timeout_minutes: 45, extra_env: {} },
+    ocr: { version: OCR_VERSION, concurrency: 16, binary: 'ocr', timeout_minutes: 15, hard_timeout_minutes: 45, extra_env: {} },
     llm: { url: 'https://opencode.ai/zen/go/v1/chat/completions', model: 'deepseek-v4-flash', use_anthropic: false },
     publication: { deduplicate: true, sticky_summary: true, comment_batch_size: 50 },
     workers: { max_review_jobs: 2, poll_interval_ms: 1000, workspace_dir: '/tmp/swear-review', clone_url_template: 'https://github.com/{owner}/{repo}.git', partial_clone: true },

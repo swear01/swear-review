@@ -1,0 +1,113 @@
+{
+  "status": "complete",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 2 finding(s) across 2 selected item(s).",
+  "summary": {
+    "files_reviewed": 2,
+    "comments": 2,
+    "total_tokens": 7192152,
+    "input_tokens": 7074517,
+    "output_tokens": 117635,
+    "cache_read_tokens": 6501248,
+    "elapsed": "17m26s"
+  },
+  "tool_calls": {
+    "total": 150,
+    "by_tool": {
+      "code_comment": 2,
+      "file_find": 50,
+      "file_read": 98
+    },
+    "failure": 1,
+    "failure_by_tool": {
+      "file_read": 1
+    },
+    "failure_details": [
+      {
+        "tool_call_number": 133,
+        "tool_name": "file_read",
+        "file_path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/SpecialOperation.java,src/org/sosy_lab/cpachecker/util/arrayabstraction/TransformableLoop.java",
+        "arguments": "{\"file_path\": \"src/org/sosy_lab/cpachecker/cpa/value/EdgeDefUseData.java\", \"start_line\": 1, \"end_line\": 140}",
+        "error": "file \"src/org/sosy_lab/cpachecker/cpa/value/EdgeDefUseData.java\" not found: git show 9442e6f97d4a8de41a68bbb9bbca856c80932857:src/org/sosy_lab/cpachecker/cpa/value/EdgeDefUseData.java: exit status 128: fatal: path 'src/org/sosy_lab/cpachecker/cpa/value/EdgeDefUseData.java' does not exist in '9442e6f97d4a8de41a68bbb9bbca856c80932857'\n"
+      }
+    ]
+  },
+  "comments": [
+    {
+      "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/TransformableLoop.java",
+      "content": "Sanitized finding 1 from OCR v1.12.9.",
+      "existing_code": "return value;",
+      "start_line": 269,
+      "end_line": 270,
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/TransformableLoop.java",
+      "content": "Sanitized finding 2 from OCR v1.12.9.",
+      "existing_code": "return value;",
+      "start_line": 256,
+      "end_line": 256,
+      "category": "performance",
+      "severity": "low"
+    }
+  ],
+  "session_id": "4714619d-4ce7-4575-8f57-07fa8ae2eb9f",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "4714619d-4ce7-4575-8f57-07fa8ae2eb9f",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {
+      "identity_sha256": "2977a35f075cefd78a321c05b412a1bc319db5033a4cd53e87eb503745cca471"
+    },
+    "input": {
+      "mode": "range",
+      "requested_from": "e76bd0dcf7bb25e605a75fa989a0c365c5fd0f05",
+      "requested_head": "9442e6f97d4a8de41a68bbb9bbca856c80932857",
+      "resolved_base": "e76bd0dcf7bb25e605a75fa989a0c365c5fd0f05",
+      "resolved_head": "9442e6f97d4a8de41a68bbb9bbca856c80932857",
+      "exact_range": "e76bd0dcf7bb25e605a75fa989a0c365c5fd0f05..9442e6f97d4a8de41a68bbb9bbca856c80932857",
+      "source_artifact_sha256": "f65dbfc33710009db8f965c838b22782cfbab3201585a443e664d0e949437744"
+    },
+    "execution": {
+      "ocr_version": "v1.12.9",
+      "model": "deepseek-flash",
+      "configured_concurrency": 2,
+      "rule_config_sha256": "9f33647a25a002db1b7770ce092ffab8b77ef98379e262871a243afd75f798d9",
+      "runtime_config_sha256": "0dbd455eb7350faaf482209e5298296b54d509d96ae589b0369b63726ecde6ff"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "141a7293fdf0368d002793f2f1aaf21ae9ce8c514cb322c29140eaa5e6a6a4a3",
+          "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/SpecialOperation.java",
+          "fingerprint": "f03ec58b37a0f5a538ccd08e582539ac663c3ce4d602d745f964fad7a7e5edb8"
+        },
+        {
+          "item_id": "e15dceeb59e4e37a09a19c0970302b5091a6792038ace96ab15f3bd2e2e6a605",
+          "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/TransformableLoop.java",
+          "fingerprint": "3b7ac62dd4edf2466bf3cb8a880eb527bd8ac52e5692d705cc5ca13aa57b7b66"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "141a7293fdf0368d002793f2f1aaf21ae9ce8c514cb322c29140eaa5e6a6a4a3",
+          "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/SpecialOperation.java",
+          "fingerprint": "f03ec58b37a0f5a538ccd08e582539ac663c3ce4d602d745f964fad7a7e5edb8"
+        },
+        {
+          "item_id": "e15dceeb59e4e37a09a19c0970302b5091a6792038ace96ab15f3bd2e2e6a605",
+          "path": "src/org/sosy_lab/cpachecker/util/arrayabstraction/TransformableLoop.java",
+          "fingerprint": "3b7ac62dd4edf2466bf3cb8a880eb527bd8ac52e5692d705cc5ca13aa57b7b66"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 1045875
+  }
+}

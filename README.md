@@ -46,7 +46,7 @@ checkout → queue → OCR 1.9.x → findings
 | GitHub | `@octokit/app`, `@octokit/webhooks` |
 | HTTP | Fastify |
 | Persistence | SQLite (`node:sqlite`) |
-| Review engine | `@alibaba-group/open-code-review@1.9.0` |
+| Review engine | `@alibaba-group/open-code-review@1.12.9` |
 | Model endpoint | OpenCode Go by default, `deepseek-v4-flash` |
 | Deployment | Docker Compose or a systemd service |
 
@@ -148,10 +148,13 @@ review:
     ready_for_review: true
 
 ocr:
-  version: "1.9.0"
+  version: "1.12.9"
   concurrency: 16       # fixed per deployment; no adaptive fallback
-  timeout_minutes: 10
+  timeout_minutes: 15
   hard_timeout_minutes: 45
+  # Optional: use the bundled tool set without code_search for repositories
+  # where large search results exhaust the model context.
+  # tools_file: /app/config/ocr-tools-no-search.json
 
 publication:
   deduplicate: true
@@ -174,6 +177,8 @@ gate:
 `ocr.concurrency` is fixed for each process configuration; the service does not
 silently fall back from 16 to 8 or 4. Smaller deployments may choose a lower
 explicit value after measuring their memory and provider limits.
+The bundled tool file is derived from Alibaba Open Code Review v1.12.9's
+`tools.json`; its Apache 2.0 license is in `config/LICENSE-ocr-tools.txt`.
 
 Repository overrides use the precedence:
 
@@ -297,6 +302,9 @@ When upgrading OCR:
 4. Run the full test suite and Docker verification workflow.
 5. Only then change the pinned version in `Dockerfile`, `package.json`, and
    `config.example.yaml`.
+
+The `ocr-v1.12.9-*.json` contract fixtures are sanitized captures from isolated
+complete, provider-failed, token-budget partial, cancelled, and skipped runs.
 
 ## Operational endpoints
 

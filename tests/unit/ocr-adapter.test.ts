@@ -6,6 +6,7 @@ import { parseOcrOutput, OcrSchemaError } from '../../src/review/ocr-adapter.js'
 
 const fixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0.json');
 const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-skipped.json');
+const latestSkippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.12.9-skipped.json');
 
 describe('parseOcrOutput', () => {
   it('parses the real v1.9.0 fixture (contract test)', () => {
@@ -21,6 +22,23 @@ describe('parseOcrOutput', () => {
     expect(first.message).toContain('null dereference');
     expect(result.coverage?.selected).toBe(1);
     expect(result.coverage?.completed).toBe(1);
+  });
+
+  it.each([
+    ['complete', 'complete', 2, 2, undefined],
+    ['failed', 'failed', 1, 0, 'provider'],
+    ['partial', 'partial', 3, 2, 'budget'],
+    ['cancelled', 'failed', 1, 0, 'cancelled'],
+  ] as const)('parses the captured v1.12.9 %s run', (name, status, selected, completed, failure) => {
+    const raw = readFileSync(path.join(path.dirname(fixturePath), `ocr-v1.12.9-${name}.json`), 'utf8');
+    const result = parseOcrOutput(raw);
+    expect(result.status).toBe(status);
+    expect(result.ocrVersion).toBe('v1.12.9');
+    expect(result.coverage?.selected).toBe(selected);
+    expect(result.coverage?.completed).toBe(completed);
+    expect(result.coverage?.failed).toBe(selected - completed);
+    expect(result.coverage?.failures[0]?.classification).toBe(failure);
+    expect(result.comments).toHaveLength(name === 'complete' ? 2 : 0);
   });
 
   it('maps zero start_line to undefined (unpositioned finding)', () => {
@@ -88,5 +106,12 @@ describe('parseOcrOutput', () => {
     expect(result.comments).toEqual([]);
     expect(result.summary?.comments).toBe(0);
     expect(result.summary?.filesReviewed).toBe(0);
+  });
+
+  it('accepts the real v1.12.9 skipped fixture', () => {
+    const result = parseOcrOutput(readFileSync(latestSkippedFixturePath, 'utf8'));
+    expect(result.status).toBe('skipped');
+    expect(result.ocrVersion).toBe('v1.12.9');
+    expect(result.coverage?.selected).toBe(0);
   });
 });

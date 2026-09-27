@@ -15,7 +15,7 @@ npm run build
 Install OCR separately only when running a real review locally:
 
 ```bash
-npm install -g @alibaba-group/open-code-review@1.9.0
+npm install -g @alibaba-group/open-code-review@1.12.9
 ```
 
 Use fake GitHub/OCR helpers for tests. Never use a production GitHub App key or

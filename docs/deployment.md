@@ -15,7 +15,7 @@ Every release must preserve these invariants:
 - A release is not complete until `/healthz`, `/readyz`, and the logs are checked.
 
 Each OCR review process receives a fresh `x-opencode-session` UUID through
-OCR 1.9.0's `OCR_LLM_EXTRA_HEADERS`. All requests and SDK retries in that review
+OCR's `OCR_LLM_EXTRA_HEADERS`. All requests and SDK retries in that review
 reuse it; separate reviews receive different IDs. Existing extra headers are
 preserved. Do not configure `x-opencode-session` yourself: the runner rejects
 that override to prevent unrelated reviews sharing a fixed ID. The gateway

@@ -1,0 +1,55 @@
+{
+  "status": "skipped",
+  "llm": {
+    "model": "probe"
+  },
+  "message": "Review skipped: no items were selected.",
+  "summary": {
+    "files_reviewed": 0,
+    "comments": 0,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "elapsed": "0s"
+  },
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "session_id": "fb019bbe-eee4-4628-9c4c-12386af4c114",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "fb019bbe-eee4-4628-9c4c-12386af4c114",
+    "operation": "review",
+    "terminal_state": "skipped",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "HEAD~1",
+      "requested_head": "HEAD",
+      "resolved_base": "cb9b07e4180c8ac2ac7a337bc3783c80de760dba",
+      "resolved_head": "ef874a0e68bdec03aa782f765b49940303804dce",
+      "exact_range": "cb9b07e4180c8ac2ac7a337bc3783c80de760dba..ef874a0e68bdec03aa782f765b49940303804dce",
+      "source_artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "execution": {
+      "ocr_version": "v1.12.9",
+      "model": "probe",
+      "configured_concurrency": 8,
+      "rule_config_sha256": "9f33647a25a002db1b7770ce092ffab8b77ef98379e262871a243afd75f798d9",
+      "runtime_config_sha256": "aa7a14ce413e12db13894ce94710bccb064dfaa0902508c0d61a6e47818443de"
+    },
+    "coverage": {
+      "selected": [],
+      "completed": [],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 8
+  }
+}

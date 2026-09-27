@@ -1,10 +1,14 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/load.js';
+import { loadConfigFile, parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/load.js';
 
 describe('parseConfig', () => {
   it('applies safe defaults for empty config', () => {
     const c = parseConfig('');
-    expect(c.ocr.version).toBe('1.9.0');
+    expect(c.ocr.version).toBe('1.12.9');
+    expect(c.ocr.timeout_minutes).toBe(15);
     expect(c.ocr.concurrency).toBe(16);
     expect(c.llm.model).toBe('deepseek-v4-flash');
     expect(c.llm.url).toBe('https://opencode.ai/zen/go/v1/chat/completions');
@@ -17,6 +21,22 @@ describe('parseConfig', () => {
     expect(c.workers.max_review_jobs).toBe(2);
     expect(c.publication.comment_batch_size).toBe(50);
     expect(c.security.auto_review_external_prs).toBe(false);
+  });
+
+  it('validates the OCR tools file at config load', () => {
+    const toolsFile = path.resolve('config/ocr-tools-no-search.json');
+    expect(parseConfig(`ocr:\n  tools_file: ${toolsFile}`).ocr.tools_file).toBe(toolsFile);
+    expect(() => parseConfig('ocr:\n  tools_file: relative.json')).toThrow('absolute path');
+    const temp = mkdtempSync(path.join(tmpdir(), 'swear-review-config-'));
+    try {
+      const configPath = path.join(temp, 'config.yaml');
+      writeFileSync(configPath, 'ocr:\n  tools_file: ' + path.join(temp, 'missing.json'));
+      expect(() => loadConfigFile(configPath)).toThrow('readable file');
+      writeFileSync(configPath, 'ocr:\n  tools_file: ' + temp);
+      expect(() => loadConfigFile(configPath)).toThrow('readable file');
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
   });
 
   it('rejects unknown gate modes', () => {

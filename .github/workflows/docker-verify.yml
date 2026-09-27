@@ -2,7 +2,7 @@ name: Docker verification
 
 # Builds the production Docker image from scratch and verifies:
 #   - Git >= 2.41 (OCR requirement, asserted in the Dockerfile AND here)
-#   - OCR 1.9.0 is installed
+#   - OCR 1.12.9 is installed
 #   - the container boots with dummy config and /healthz + /readyz respond
 # Fails on any image/build/runtime problem.
 
@@ -54,17 +54,41 @@ jobs:
             exit 1
           fi
 
-      - name: Assert OCR 1.9.0
+      - name: Assert OCR 1.12.9
         run: |
           set -euo pipefail
           ov=$(docker run --rm --entrypoint ocr swear-review:ci version)
           echo "ocr: $ov"
-          if echo "$ov" | grep -q '1.9.0'; then
-            echo "PASS: OCR 1.9.0"
+          if echo "$ov" | grep -q '1.12.9'; then
+            echo "PASS: OCR 1.12.9"
           else
             echo "FAIL: OCR version mismatch"
             exit 1
           fi
+
+      - name: Validate bundled OCR tool set
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh swear-review:ci -ec '
+            set -eu
+            mkdir -p /tmp/ocr-smoke && cd /tmp/ocr-smoke
+            git init -q
+            git config user.name CI
+            git config user.email ci@example.invalid
+            printf "first\n" > README.md
+            git add . && git commit -qm base
+            printf "second\n" > README.md
+            git add . && git commit -qm docs
+            node -e "const t=JSON.parse(require(\"node:fs\").readFileSync(\"/app/config/ocr-tools-no-search.json\")); const names=t.map(x=>x.name).sort().join(\",\"); if(names!==\"code_comment,file_find,file_read,file_read_diff,task_done\") process.exit(1)"
+            OCR_NO_UPDATE=1 NO_COLOR=1 \
+              OCR_LLM_URL=http://127.0.0.1:9/v1/chat/completions \
+              OCR_LLM_TOKEN=ci-dummy OCR_LLM_MODEL=deepseek-flash \
+              ocr review --from HEAD~1 --to HEAD --repo "$PWD" \
+              --format json --audience agent \
+              --tools /app/config/ocr-tools-no-search.json > /tmp/ocr-result.json
+            grep -q "\"status\": \"skipped\"" /tmp/ocr-result.json
+            grep -q "\"ocr_version\": \"v1.12.9\"" /tmp/ocr-result.json
+          '
 
       - name: Smoke test /healthz and /readyz
         run: |
