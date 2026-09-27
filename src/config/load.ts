@@ -27,8 +27,8 @@ export function loadConfigFile(path: string): AppConfig {
     try {
       if (!statSync(config.ocr.tools_file).isFile()) throw new Error('not a file');
       accessSync(config.ocr.tools_file, constants.R_OK);
-    } catch {
-      throw new Error('OCR tools_file must be a readable file: ' + config.ocr.tools_file);
+    } catch (err) {
+      throw new Error('OCR tools_file must be a readable file: ' + config.ocr.tools_file, { cause: err });
     }
   }
   return config;
