@@ -66,7 +66,7 @@ jobs:
             exit 1
           fi
 
-      - name: Smoke test bundled OCR tools
+      - name: Validate bundled OCR tool set
         run: |
           set -euo pipefail
           docker run --rm --entrypoint sh swear-review:ci -ec '
@@ -79,7 +79,9 @@ jobs:
             git add . && git commit -qm base
             printf "second\n" > README.md
             git add . && git commit -qm docs
-            OCR_LLM_URL=http://127.0.0.1:9/v1/chat/completions \
+            node -e "const t=JSON.parse(require(\"node:fs\").readFileSync(\"/app/config/ocr-tools-no-search.json\")); const names=t.map(x=>x.name).sort().join(\",\"); if(names!==\"code_comment,file_find,file_read,file_read_diff,task_done\") process.exit(1)"
+            OCR_NO_UPDATE=1 NO_COLOR=1 \
+              OCR_LLM_URL=http://127.0.0.1:9/v1/chat/completions \
               OCR_LLM_TOKEN=ci-dummy OCR_LLM_MODEL=deepseek-flash \
               ocr review --from HEAD~1 --to HEAD --repo "$PWD" \
               --format json --audience agent \

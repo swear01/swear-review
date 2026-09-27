@@ -1,6 +1,8 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/load.js';
+import { loadConfigFile, parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/load.js';
 
 describe('parseConfig', () => {
   it('applies safe defaults for empty config', () => {
@@ -25,7 +27,16 @@ describe('parseConfig', () => {
     const toolsFile = path.resolve('config/ocr-tools-no-search.json');
     expect(parseConfig(`ocr:\n  tools_file: ${toolsFile}`).ocr.tools_file).toBe(toolsFile);
     expect(() => parseConfig('ocr:\n  tools_file: relative.json')).toThrow('absolute path');
-    expect(() => parseConfig('ocr:\n  tools_file: /nonexistent/ocr-tools.json')).toThrow('does not exist');
+    const temp = mkdtempSync(path.join(tmpdir(), 'swear-review-config-'));
+    try {
+      const configPath = path.join(temp, 'config.yaml');
+      writeFileSync(configPath, 'ocr:\n  tools_file: ' + path.join(temp, 'missing.json'));
+      expect(() => loadConfigFile(configPath)).toThrow('readable file');
+      writeFileSync(configPath, 'ocr:\n  tools_file: ' + temp);
+      expect(() => loadConfigFile(configPath)).toThrow('readable file');
+    } finally {
+      rmSync(temp, { recursive: true, force: true });
+    }
   });
 
   it('rejects unknown gate modes', () => {

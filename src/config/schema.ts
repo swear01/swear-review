@@ -1,4 +1,3 @@
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 
@@ -105,7 +104,6 @@ const OcrConfigSchema = z
     /** Optional OCR tool definitions file. */
     tools_file: z.string()
       .refine((value) => path.isAbsolute(value), 'OCR tools_file must be an absolute path')
-      .refine((value) => existsSync(value), 'OCR tools_file does not exist')
       .optional(),
     /** Per-task timeout in minutes passed to `ocr review --timeout`. */
     timeout_minutes: z.number().int().min(1).default(15),
