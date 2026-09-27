@@ -44,6 +44,7 @@ WORKDIR /app
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY config.example.yaml ./config.example.yaml
+# Regenerate these definitions when the pinned OCR release changes.
 COPY config/ocr-tools-no-search.json ./config/ocr-tools-no-search.json
 COPY config/LICENSE-ocr-tools.txt ./config/LICENSE-ocr-tools.txt
 

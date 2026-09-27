@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { parseConfig, resolveRepoConfig, defaultConfig } from '../../src/config/load.js';
 
@@ -18,6 +19,13 @@ describe('parseConfig', () => {
     expect(c.workers.max_review_jobs).toBe(2);
     expect(c.publication.comment_batch_size).toBe(50);
     expect(c.security.auto_review_external_prs).toBe(false);
+  });
+
+  it('validates the OCR tools file at config load', () => {
+    const toolsFile = path.resolve('config/ocr-tools-no-search.json');
+    expect(parseConfig(`ocr:\n  tools_file: ${toolsFile}`).ocr.tools_file).toBe(toolsFile);
+    expect(() => parseConfig('ocr:\n  tools_file: relative.json')).toThrow('absolute path');
+    expect(() => parseConfig('ocr:\n  tools_file: /nonexistent/ocr-tools.json')).toThrow('does not exist');
   });
 
   it('rejects unknown gate modes', () => {

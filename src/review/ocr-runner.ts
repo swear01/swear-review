@@ -36,9 +36,6 @@ export interface OcrRunInput {
  * retry amplification.
  */
 export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
-  if (input.toolsFile && !path.isAbsolute(input.toolsFile)) {
-    throw new Error('OCR tools_file must be an absolute path');
-  }
   const args = [
     'review',
     '--from', input.baseSha,

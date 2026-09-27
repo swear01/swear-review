@@ -66,6 +66,28 @@ jobs:
             exit 1
           fi
 
+      - name: Smoke test bundled OCR tools
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint sh swear-review:ci -ec '
+            set -eu
+            mkdir -p /tmp/ocr-smoke && cd /tmp/ocr-smoke
+            git init -q
+            git config user.name CI
+            git config user.email ci@example.invalid
+            printf "first\n" > README.md
+            git add . && git commit -qm base
+            printf "second\n" > README.md
+            git add . && git commit -qm docs
+            OCR_LLM_URL=http://127.0.0.1:9/v1/chat/completions \
+              OCR_LLM_TOKEN=ci-dummy OCR_LLM_MODEL=deepseek-flash \
+              ocr review --from HEAD~1 --to HEAD --repo "$PWD" \
+              --format json --audience agent \
+              --tools /app/config/ocr-tools-no-search.json > /tmp/ocr-result.json
+            grep -q "\"status\": \"skipped\"" /tmp/ocr-result.json
+            grep -q "\"ocr_version\": \"v1.12.9\"" /tmp/ocr-result.json
+          '
+
       - name: Smoke test /healthz and /readyz
         run: |
           set -euo pipefail
