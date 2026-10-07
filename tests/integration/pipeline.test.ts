@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createHarness, waitFor } from '../helpers/harness.js';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { createHarness, prEventPayload, waitFor } from '../helpers/harness.js';
 import { createLocalRepo, addCommit, cleanupLocalRepo, ensureTempReposDir, type LocalRepo } from '../helpers/local-repo.js';
 import { FakeGitHubApi } from '../helpers/fake-github.js';
 
@@ -19,6 +21,56 @@ afterAll(() => {
 });
 
 describe('full pipeline (webhook → queue → worker → publish)', () => {
+  it.each([
+    ['partial', 0, true],
+    ['cancelled', 0, false],
+    ['complete', 1, false],
+    ['complete', 0, true],
+  ])('does not mark status=%s exit=%i failedItems=%s as a successful review', async (status, exitCode, failedItems) => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    const directory = mkdtempSync(path.join(tmpdir(), 'swear-incomplete-'));
+    const fixture = path.join(directory, 'result.json');
+    writeFileSync(fixture, JSON.stringify({
+      status,
+      comments: [{ path: 'src/main.ts', content: 'Preserve this useful finding', end_line: 2, category: 'bug' }],
+      manifest: { coverage: {
+        selected: [{ path: 'src/main.ts' }], completed: [],
+        failed: failedItems ? [{ path: 'src/main.ts', classification: 'timeout' }] : [],
+      } },
+    }));
+    const config = FakeGitHubApi.config({ binary: MOCK_OCR, workspaceDir: path.join(directory, 'ws'), cloneTemplate: `file://${repo.bareDir}` });
+    config.ocr.extra_env = { MOCK_OCR_FIXTURE: fixture, MOCK_OCR_EXIT_CODE: String(exitCode) };
+    if (status === 'cancelled') config.gate.fail_closed_on_review_error = false;
+    const harness = createHarness(config, github);
+    harness.db.setPullRequestReviewed('test-owner', 'demo', 42, repo.baseSha, 'full', true);
+    harness.db.setRepositoryReviewed('test-owner', 'demo', repo.baseSha, 'full', true);
+    try {
+      const event = prEventPayload();
+      event.pull_request = { ...(event.pull_request as Record<string, unknown>), head: { sha: repo.headSha, ref: 'feature' }, base: { sha: repo.baseSha, ref: 'main' } };
+      (event.repository as Record<string, unknown>).private = true;
+      await harness.scheduler.handleEvent('pull_request', event);
+      await waitFor(() => ['completed', 'failed'].includes(harness.db.getLatestJob('test-owner', 'demo', 42)?.status ?? ''), 30_000);
+      const job = harness.db.getLatestJob('test-owner', 'demo', 42)!;
+      expect(job.status).toBe('failed');
+      const run = harness.db.getRun(job.review_run_id!)!;
+      expect(run.status).toBe('failed');
+      expect(run.finding_count).toBe(1);
+      expect(run.error_message).toContain('OCR review incomplete');
+      expect(github.callsTo('checks.update')[0]!.params.conclusion).toBe(status === 'cancelled' ? 'neutral' : 'failure');
+      expect(github.callsTo('issues.createComment').some(c => String(c.params.body).includes('OCR review incomplete'))).toBe(true);
+      expect(github.callsTo('issues.createComment').some(c => String(c.params.body).includes('Preserve this useful finding'))).toBe(true);
+      const pr = harness.db.getPullRequest('test-owner', 'demo', 42)!;
+      expect(pr.last_successful_review_sha).toBe(repo.baseSha);
+      expect(pr.last_full_review_sha).toBe(repo.baseSha);
+      expect(harness.db.getRepositoryState('test-owner', 'demo')?.last_successful_review_sha).toBe(repo.baseSha);
+    } finally {
+      harness.cleanup();
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('ignores an out-of-order pull_request webhook whose head is no longer current', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;

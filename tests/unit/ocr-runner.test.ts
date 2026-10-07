@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,36 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('runOcr', () => {
+  it('passes repository background to OCR and rejects paths outside the checkout', async () => {
+    const repoDir = mkdtempSync(path.join(root, 'background-'));
+    const binary = path.join(repoDir, 'args.mjs');
+    writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n', { mode: 0o755 });
+    const input = {
+      baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 2,
+      timeoutMinutes: 15, hardTimeoutMinutes: 1, binary,
+      repoDir, homeDir: root, ocrEnv: {}, log: createLogger('silent'),
+    };
+    expect(JSON.parse((await runOcr(input)).stdout)).not.toContain('--background-file');
+    const directory = path.join(repoDir, '.opencodereview');
+    mkdirSync(directory);
+    const file = path.join(directory, 'background.md');
+    writeFileSync(file, '# Requirements\nOutput y equals input a.\n');
+    const args = JSON.parse((await runOcr(input)).stdout) as string[];
+    expect(args.slice(args.indexOf('--background-file'), args.indexOf('--background-file') + 2)).toEqual(['--background-file', realpathSync(file)]);
+    rmSync(file);
+    mkdirSync(file);
+    await expect(runOcr(input)).rejects.toThrow('regular file inside');
+    rmSync(file, { recursive: true });
+    const outside = path.join(root, 'outside.md');
+    writeFileSync(outside, 'Must not be sent to OCR');
+    symlinkSync(outside, file);
+    await expect(runOcr(input)).rejects.toThrow('regular file inside');
+    rmSync(directory, { recursive: true });
+    symlinkSync(root, directory, 'dir');
+    writeFileSync(path.join(root, 'background.md'), 'Outside parent directory');
+    await expect(runOcr(input)).rejects.toThrow('regular file inside');
+  });
+
   it('passes an optional tool definition file to OCR', async () => {
     const binary = path.join(root, 'args.mjs');
     writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n', { mode: 0o755 });

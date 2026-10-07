@@ -48,7 +48,7 @@ const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
 
 const out = {
   ...fixture,
-  status: 'complete',
+  status: fixture.status,
   manifest: {
     ...(fixture.manifest ?? {}),
     input: {
@@ -70,4 +70,4 @@ const out = {
 process.stdout.write(JSON.stringify(out, null, 2));
 // eslint-disable-next-line no-console
 if (process.env.MOCK_OCR_VERBOSE) console.error(`[mock-ocr] from=${from} to=${to} concurrency=${concurrency} format=${format} repo=${repo} timeout=${timeout}`);
-process.exit(0);
+process.exit(Number(process.env.MOCK_OCR_EXIT_CODE ?? 0));
