@@ -27,6 +27,7 @@ export interface PublishInput {
   blocking: boolean;
   blockReason: string;
   checkName: string;
+  reviewError?: string;
 }
 
 /**
@@ -165,8 +166,8 @@ export async function publishReviewResult(ctx: ServiceContext, input: PublishInp
       inlinePublished: published.length,
       routedToSummary: routedToSummary.length,
       routedFindings: routedToSummary.map((r) => r.finding),
-      status: 'Completed',
-      statusDetail: ocr.status === 'skipped' ? ocr.message : undefined,
+      status: input.reviewError ? 'Failed' : 'Completed',
+      statusDetail: input.reviewError ?? (ocr.status === 'skipped' ? ocr.message : undefined),
       gateMode: input.gateMode,
       blocking: input.blocking,
       blockReason: input.blockReason,
@@ -256,7 +257,7 @@ export function buildSummaryBody(input: {
   if (input.statusDetail) {
     lines.push(input.statusDetail);
   }
-  if (input.gateMode && input.gateMode !== 'off') {
+  if (input.status === 'Completed' && input.gateMode && input.gateMode !== 'off') {
     lines.push('');
     if (input.blocking) {
       lines.push(`❌ Merge blocked — ${input.blockReason}`);

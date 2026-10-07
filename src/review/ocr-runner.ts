@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { lstatSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { Logger } from '../util/logger.js';
 
@@ -36,6 +37,7 @@ export interface OcrRunInput {
  * retry amplification.
  */
 export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
+  const backgroundFile = repositoryBackgroundFile(input.repoDir);
   const args = [
     'review',
     '--from', input.baseSha,
@@ -46,6 +48,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     '--timeout', String(input.timeoutMinutes),
     '--repo', input.repoDir,
     ...(input.toolsFile ? ['--tools', input.toolsFile] : []),
+    ...(backgroundFile ? ['--background-file', backgroundFile] : []),
   ];
 
   const env: NodeJS.ProcessEnv = {
@@ -139,6 +142,30 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     'ocr process finished',
   );
   return result;
+}
+
+function repositoryBackgroundFile(repoDir: string): string | undefined {
+  const file = path.join(repoDir, '.opencodereview', 'background.md');
+  try {
+    lstatSync(file);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw err;
+  }
+  let resolved: string;
+  try {
+    resolved = realpathSync(file);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error('OCR background must be a regular file inside the reviewed repository');
+    }
+    throw err;
+  }
+  const relative = path.relative(realpathSync(repoDir), resolved);
+  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !statSync(resolved).isFile()) {
+    throw new Error('OCR background must be a regular file inside the reviewed repository');
+  }
+  return resolved;
 }
 
 function killProcessGroup(child: ChildProcess, signal: NodeJS.Signals): void {

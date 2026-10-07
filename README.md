@@ -1,7 +1,7 @@
 # Swear Review
 
 A self-hosted GitHub App that gives every pull request an independent AI review
-through [Alibaba Open Code Review (OCR)](https://github.com/alibaba/opencode-review)
+through [Alibaba Open Code Review (OCR)](https://github.com/alibaba/open-code-review)
 and an OpenAI-compatible LLM endpoint. It publishes native GitHub inline
 comments, a sticky summary, and a Check Run.
 
@@ -235,6 +235,28 @@ PR. Swear Review treats that as a successful empty review, publishes the reason
 in the summary and Check Run, and does not block the PR.
 
 ## Using the bot
+
+Repositories can commit `.opencodereview/background.md` to supply requirements
+via OCR's `--background-file`. The file must resolve to a regular file inside
+the checkout. This is contributor-controlled context from the PR head, like
+OCR's repository rules; it is not a trusted reviewer policy. Include changes to
+this file in review and validate findings against the approved requirements.
+Keep the background concise: OCR recommends at most 2,000
+characters and rejects content over 8,000 characters. For spec-to-RTL reviews,
+summarize the approved behavior and name the tracked refined spec, decision
+log, architecture, RTL, and verification files for the reviewer to read.
+
+OCR reads `.opencodereview/rule.json` automatically. Its `include` patterns can
+enable Markdown and testbenches, but cannot restore files filtered earlier by
+`.gitignore`; review deliverables must be tracked and not ignored. Keep the
+built-in Verilog rules unless a project deliberately replaces them.
+
+Partial/cancelled results, failed coverage items, and nonzero OCR exits are
+review failures. Available findings are still published, but these runs do not
+advance the last successful review SHA. The check fails by default, or stays
+neutral when `fail_closed_on_review_error` is disabled. A skipped review still
+means no files were selected, and a successful check with `gate.mode: off`
+means execution succeeded, not that there were no findings.
 
 Automatic reviews run for the configured pull-request events. Each automatic
 review covers the full merge-base-to-HEAD range.

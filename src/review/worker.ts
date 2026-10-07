@@ -206,6 +206,9 @@ export class Worker {
       if (ocr.configuredConcurrency !== undefined && ocr.configuredConcurrency !== resolved.ocr.concurrency) {
         log.warn({ ocrConcurrency: ocr.configuredConcurrency, expected: resolved.ocr.concurrency }, 'OCR reported unexpected concurrency');
       }
+      const reviewError = proc.exitCode !== 0 || !['complete', 'success', 'skipped'].includes(ocr.status) || (ocr.coverage?.failed ?? 0) > 0
+        ? `OCR review incomplete: status=${ocr.status}, exit=${proc.exitCode}, failed items=${ocr.coverage?.failed ?? 'unknown'}`
+        : undefined;
 
       const findings = ocr.comments;
       this.ctx.metrics.findingsTotal.inc({ repo: `${job.repo_owner}/${job.repo_name}` }, findings.length);
@@ -227,7 +230,7 @@ export class Worker {
         gateMode: resolved.gate.mode,
         blockCategories: resolved.gate.block_categories,
         findings,
-        reviewError: false,
+        reviewError: reviewError !== undefined,
         failClosedOnReviewError: resolved.gate.fail_closed_on_review_error,
       });
 
@@ -246,6 +249,7 @@ export class Worker {
         blocking: gateDecision.blocking,
         blockReason: gateDecision.reason,
         checkName: resolved.app.check_name,
+        reviewError,
       });
 
       if (publish.stale) {
@@ -270,30 +274,37 @@ export class Worker {
             findingsCount: publish.totalFindings,
             durationSec,
             counts: publish.counts,
-            statusLine: gateDecision.conclusion === 'success' ? 'completed' : gateDecision.conclusion,
-            extra: ocr.status === 'skipped'
+            statusLine: reviewError ? 'incomplete' : gateDecision.conclusion === 'success' ? 'completed' : gateDecision.conclusion,
+            extra: reviewError ?? (ocr.status === 'skipped'
               ? ocr.message
               : gateDecision.blocking
                 ? `Blocking categories: ${resolved.gate.block_categories.join(', ')}`
-                : undefined,
+                : undefined),
           }),
         },
       });
-      this.ctx.db.completeRun(runId, 'completed', publish.totalFindings, null, {
+      this.ctx.db.completeRun(runId, reviewError ? 'failed' : 'completed', publish.totalFindings, reviewError ?? null, {
         ocrVersion: ocr.ocrVersion ?? resolved.ocr.version,
         model: ocr.model ?? resolved.llm.model,
       });
-      this.ctx.db.setJobStatus(job.id, 'completed', { finished: true });
-      this.ctx.db.setPullRequestReviewed(job.repo_owner, job.repo_name, job.pr_number, job.head_sha, job.mode, true);
-      this.ctx.db.setRepositoryReviewed(job.repo_owner, job.repo_name, job.head_sha, job.mode, true);
+      this.ctx.db.setJobStatus(job.id, reviewError ? 'failed' : 'completed', { finished: true });
+      if (!reviewError) {
+        this.ctx.db.setPullRequestReviewed(job.repo_owner, job.repo_name, job.pr_number, job.head_sha, job.mode, true);
+        this.ctx.db.setRepositoryReviewed(job.repo_owner, job.repo_name, job.head_sha, job.mode, true);
+      }
       await this.reconcileAnyProviderGate(job, resolved, log).catch((err) => log.warn({ err: (err as Error).message }, 'provider gate reconciliation failed'));
 
-      this.ctx.metrics.reviewsSuccess.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
+      if (reviewError) {
+        this.ctx.metrics.reviewsFailed.inc({ repo: `${job.repo_owner}/${job.repo_name}`, kind: 'ocr' });
+        this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
+      } else {
+        this.ctx.metrics.reviewsSuccess.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
+      }
       this.ctx.metrics.reviewDurationSeconds.observe(durationSec, { repo: `${job.repo_owner}/${job.repo_name}` });
 
       log.info(
         {
-          exit_status: 'success',
+          exit_status: reviewError ? 'failure' : 'success',
           duration: Math.round(durationSec),
           finding_count: publish.totalFindings,
           inline: publish.inlinePublished,
@@ -303,7 +314,7 @@ export class Worker {
           ocrVersion: ocr.ocrVersion ?? resolved.ocr.version,
           model: ocr.model ?? resolved.llm.model,
         },
-        'review completed',
+        reviewError ? 'review incomplete' : 'review completed',
       );
     } catch (err) {
       if (ac.signal.aborted) {
