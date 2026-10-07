@@ -43,6 +43,7 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     const config = FakeGitHubApi.config({ binary: MOCK_OCR, workspaceDir: path.join(directory, 'ws'), cloneTemplate: `file://${repo.bareDir}` });
     config.ocr.extra_env = { MOCK_OCR_FIXTURE: fixture, MOCK_OCR_EXIT_CODE: String(exitCode) };
     if (status === 'cancelled') config.gate.fail_closed_on_review_error = false;
+    config.gate.mode = 'check';
     const harness = createHarness(config, github);
     harness.db.setPullRequestReviewed('test-owner', 'demo', 42, repo.baseSha, 'full', true);
     harness.db.setRepositoryReviewed('test-owner', 'demo', repo.baseSha, 'full', true);
@@ -61,6 +62,8 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       expect(github.callsTo('checks.update')[0]!.params.conclusion).toBe(status === 'cancelled' ? 'neutral' : 'failure');
       expect(github.callsTo('issues.createComment').some(c => String(c.params.body).includes('OCR review incomplete'))).toBe(true);
       expect(github.callsTo('issues.createComment').some(c => String(c.params.body).includes('Preserve this useful finding'))).toBe(true);
+      expect(github.callsTo('issues.createComment').some(c => String(c.params.body).includes('No blocking findings'))).toBe(false);
+      expect(harness.ctx.metrics.reviewsFailed.render()).toContain('kind="ocr"');
       const pr = harness.db.getPullRequest('test-owner', 'demo', 42)!;
       expect(pr.last_successful_review_sha).toBe(repo.baseSha);
       expect(pr.last_full_review_sha).toBe(repo.baseSha);

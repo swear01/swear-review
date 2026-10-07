@@ -152,7 +152,15 @@ function repositoryBackgroundFile(repoDir: string): string | undefined {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
     throw err;
   }
-  const resolved = realpathSync(file);
+  let resolved: string;
+  try {
+    resolved = realpathSync(file);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      throw new Error('OCR background must be a regular file inside the reviewed repository');
+    }
+    throw err;
+  }
   const relative = path.relative(realpathSync(repoDir), resolved);
   if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) || !statSync(resolved).isFile()) {
     throw new Error('OCR background must be a regular file inside the reviewed repository');

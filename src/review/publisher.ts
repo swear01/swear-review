@@ -257,7 +257,7 @@ export function buildSummaryBody(input: {
   if (input.statusDetail) {
     lines.push(input.statusDetail);
   }
-  if (input.gateMode && input.gateMode !== 'off') {
+  if (input.status === 'Completed' && input.gateMode && input.gateMode !== 'off') {
     lines.push('');
     if (input.blocking) {
       lines.push(`❌ Merge blocked — ${input.blockReason}`);

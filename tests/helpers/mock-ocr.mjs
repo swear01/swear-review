@@ -48,7 +48,6 @@ const fixture = JSON.parse(readFileSync(fixturePath, 'utf8'));
 
 const out = {
   ...fixture,
-  status: fixture.status,
   manifest: {
     ...(fixture.manifest ?? {}),
     input: {

@@ -238,7 +238,10 @@ in the summary and Check Run, and does not block the PR.
 
 Repositories can commit `.opencodereview/background.md` to supply requirements
 via OCR's `--background-file`. The file must resolve to a regular file inside
-the checkout. Keep the background concise: OCR recommends at most 2,000
+the checkout. This is contributor-controlled context from the PR head, like
+OCR's repository rules; it is not a trusted reviewer policy. Include changes to
+this file in review and validate findings against the approved requirements.
+Keep the background concise: OCR recommends at most 2,000
 characters and rejects content over 8,000 characters. For spec-to-RTL reviews,
 summarize the approved behavior and name the tracked refined spec, decision
 log, architecture, RTL, and verification files for the reviewer to read.

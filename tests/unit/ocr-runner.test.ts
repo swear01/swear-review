@@ -37,6 +37,9 @@ describe('runOcr', () => {
     mkdirSync(file);
     await expect(runOcr(input)).rejects.toThrow('regular file inside');
     rmSync(file, { recursive: true });
+    symlinkSync(path.join(root, 'missing-background.md'), file);
+    await expect(runOcr(input)).rejects.toThrow('regular file inside');
+    rmSync(file);
     const outside = path.join(root, 'outside.md');
     writeFileSync(outside, 'Must not be sent to OCR');
     symlinkSync(outside, file);

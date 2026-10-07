@@ -294,8 +294,12 @@ export class Worker {
       }
       await this.reconcileAnyProviderGate(job, resolved, log).catch((err) => log.warn({ err: (err as Error).message }, 'provider gate reconciliation failed'));
 
-      (reviewError ? this.ctx.metrics.reviewsFailed : this.ctx.metrics.reviewsSuccess).inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
-      if (reviewError) this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
+      if (reviewError) {
+        this.ctx.metrics.reviewsFailed.inc({ repo: `${job.repo_owner}/${job.repo_name}`, kind: 'ocr' });
+        this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
+      } else {
+        this.ctx.metrics.reviewsSuccess.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
+      }
       this.ctx.metrics.reviewDurationSeconds.observe(durationSec, { repo: `${job.repo_owner}/${job.repo_name}` });
 
       log.info(
