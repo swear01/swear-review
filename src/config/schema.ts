@@ -6,7 +6,7 @@ import { z } from 'zod';
  * Target repositories never carry any configuration file.
  */
 
-const OCR_VERSION = '1.12.9';
+const OCR_VERSION = '1.13.2';
 
 export const GateModeSchema = z.enum(['off', 'check', 'managed']);
 export const GateStrategySchema = z.enum(['single', 'any']);

@@ -1,0 +1,176 @@
+{
+  "status": "partial",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review partially complete: 4 finding(s); 1 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 4,
+    "total_tokens": 73097,
+    "input_tokens": 68001,
+    "output_tokens": 5096,
+    "cache_read_tokens": 24448,
+    "elapsed": "31s",
+    "budget_exceeded": true
+  },
+  "tool_calls": {
+    "total": 5,
+    "by_tool": {
+      "code_comment": 3,
+      "code_search": 1,
+      "file_read_diff": 1
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "lib/cache/cache.go",
+      "content": "Sanitized finding 1 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 3,
+      "end_line": 8,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "lib/cache/cache.go",
+      "content": "Sanitized finding 2 from OCR v1.13.2.",
+      "existing_code": "return value;",
+      "start_line": 10,
+      "end_line": 15,
+      "thinking": "Sanitized reasoning.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "svc/auth/auth.go",
+      "content": "Sanitized finding 3 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 3,
+      "end_line": 6,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "svc/auth/auth.go",
+      "content": "Sanitized finding 4 from OCR v1.13.2.",
+      "existing_code": "return value;",
+      "start_line": 10,
+      "end_line": 13,
+      "thinking": "Sanitized reasoning.",
+      "category": "maintainability",
+      "severity": "low"
+    }
+  ],
+  "groups": [
+    {
+      "label": "lib/cache/cache.go",
+      "files": [
+        "lib/cache/cache.go"
+      ]
+    },
+    {
+      "label": "svc/auth/auth.go",
+      "files": [
+        "svc/auth/auth.go"
+      ]
+    },
+    {
+      "label": "svc/billing/billing.go",
+      "files": [
+        "svc/billing/billing.go"
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "file": "lib/cache/cache.go",
+      "message": "skipped round 2 of group \"lib/cache/cache.go\": used 51725 tokens exceeds budget 50000",
+      "type": "token_budget_reached"
+    },
+    {
+      "file": "svc/billing/billing.go",
+      "message": "stopped dispatch: used 51725 tokens + group estimate 42396 = projected 94121 exceeds budget 50000",
+      "type": "token_budget_reached"
+    },
+    {
+      "file": "svc/auth/auth.go",
+      "message": "reached the aggregate token budget before finishing; the grace round did not complete the task",
+      "type": "review_limit_reached"
+    }
+  ],
+  "session_id": "e5fcc38c-7a4d-49a6-a155-7952890aa8b3",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "e5fcc38c-7a4d-49a6-a155-7952890aa8b3",
+    "operation": "review",
+    "terminal_state": "partial",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "8a09f2750be426f3216db731311d3c1f539aa748",
+      "requested_head": "2d5aec5112f955853c9258add32586f99985d948",
+      "resolved_base": "8a09f2750be426f3216db731311d3c1f539aa748",
+      "resolved_head": "2d5aec5112f955853c9258add32586f99985d948",
+      "exact_range": "8a09f2750be426f3216db731311d3c1f539aa748..2d5aec5112f955853c9258add32586f99985d948",
+      "source_artifact_sha256": "68ef71442b0be1b1a5b695e13d369dae34a7a2d42aaca733280b9c8df8d4a979"
+    },
+    "execution": {
+      "ocr_version": "v1.13.2",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "rule_config_sha256": "7bdde30da0c66ee5643876474d879e4d72b8803bf0501749f82291f5b9b2b87a",
+      "runtime_config_sha256": "3f43eeb7fc018fd178ecad89bd2a809a4daa396f277cd1af89b526c0d19e468d"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "01c48a9074599871c2083065617b54e9cddc2842bca41a7dc0adb14805ebbdef",
+          "path": "lib/cache/cache.go",
+          "fingerprint": "c81743e63a64287d37b5ab95387e7d436ae0a32d4409ecd55f6e5b6e5cf43af6"
+        },
+        {
+          "item_id": "179b4c7389a5e80c99b808cc69dd16e5d1a80142e64c44c0aae7ebcc9adcfa25",
+          "path": "svc/auth/auth.go",
+          "fingerprint": "8ec9b6d5f0648ed8b8f63cbb0c49f1c6547e75b2842c46fa623f07675627ec57"
+        },
+        {
+          "item_id": "257453a7e5a160ea260f15f70f9b60321b4d504e11d713b845e1f27e314d8dea",
+          "path": "svc/billing/billing.go",
+          "fingerprint": "2908bf40f3ee2bd530a5197ed4daaee04f64b46bcbe6c2b8e1eb1ea3ae50b884"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "01c48a9074599871c2083065617b54e9cddc2842bca41a7dc0adb14805ebbdef",
+          "path": "lib/cache/cache.go",
+          "fingerprint": "c81743e63a64287d37b5ab95387e7d436ae0a32d4409ecd55f6e5b6e5cf43af6"
+        },
+        {
+          "item_id": "179b4c7389a5e80c99b808cc69dd16e5d1a80142e64c44c0aae7ebcc9adcfa25",
+          "path": "svc/auth/auth.go",
+          "fingerprint": "8ec9b6d5f0648ed8b8f63cbb0c49f1c6547e75b2842c46fa623f07675627ec57"
+        }
+      ],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "257453a7e5a160ea260f15f70f9b60321b4d504e11d713b845e1f27e314d8dea",
+          "path": "svc/billing/billing.go",
+          "fingerprint": "2908bf40f3ee2bd530a5197ed4daaee04f64b46bcbe6c2b8e1eb1ea3ae50b884",
+          "classification": "budget",
+          "reason": "aggregate token budget reached before dispatch completed"
+        }
+      ],
+      "waived": []
+    },
+    "elapsed_ms": 30710
+  }
+}

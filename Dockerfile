@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Swear Review — GitHub-native AI code review bot
-#   Node.js 24 + Git >= 2.41 (Debian Trixie) + Alibaba Open Code Review v1.12.9
+#   Node.js 24 + Git >= 2.41 (Debian Trixie) + Alibaba Open Code Review v1.13.2
 
 FROM node:24-trixie-slim AS base
 
@@ -20,8 +20,8 @@ RUN apt-get update \
      fi
 
 # OCR is a native binary — install the pinned release globally and assert it.
-RUN npm install -g @alibaba-group/open-code-review@1.12.9 --no-audit --no-fund \
-  && ocr version 2>&1 | grep -q '1.12.9' \
+RUN npm install -g @alibaba-group/open-code-review@1.13.2 --no-audit --no-fund \
+  && ocr version 2>&1 | grep -q '1.13.2' \
   && echo "OCR version OK: $(ocr version 2>&1 | head -1)"
 
 WORKDIR /app
