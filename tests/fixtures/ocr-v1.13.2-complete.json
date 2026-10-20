@@ -1,0 +1,148 @@
+{
+  "status": "complete",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 4 finding(s) across 3 selected item(s).",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 4,
+    "total_tokens": 45735,
+    "input_tokens": 41856,
+    "output_tokens": 3879,
+    "cache_read_tokens": 33792,
+    "elapsed": "24s"
+  },
+  "tool_calls": {
+    "total": 8,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_find": 1,
+      "file_read": 4
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "alpha.go",
+      "content": "Sanitized finding 1 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 7,
+      "end_line": 10,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "beta.go",
+      "content": "Sanitized finding 2 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 6,
+      "end_line": 6,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "beta.go",
+      "content": "Sanitized finding 3 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 9,
+      "end_line": 9,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "gamma.go",
+      "content": "Sanitized finding 4 from OCR v1.13.2.",
+      "suggestion_code": "return checked(value);",
+      "existing_code": "return value;",
+      "start_line": 7,
+      "end_line": 11,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "critical"
+    }
+  ],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "alpha.go",
+        "beta.go",
+        "gamma.go"
+      ]
+    }
+  ],
+  "session_id": "5206aace-53d6-41b7-aa9b-b17346307bfb",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "5206aace-53d6-41b7-aa9b-b17346307bfb",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "faf607cee55f3a3b9905e4dc0177910fe9393a29",
+      "requested_head": "8a09f2750be426f3216db731311d3c1f539aa748",
+      "resolved_base": "faf607cee55f3a3b9905e4dc0177910fe9393a29",
+      "resolved_head": "8a09f2750be426f3216db731311d3c1f539aa748",
+      "exact_range": "faf607cee55f3a3b9905e4dc0177910fe9393a29..8a09f2750be426f3216db731311d3c1f539aa748",
+      "source_artifact_sha256": "f0c43914e2689cd163b67cb69d3af3a300881c4840bc3fe2a729f469c0a70dac"
+    },
+    "execution": {
+      "ocr_version": "v1.13.2",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "rule_config_sha256": "7bdde30da0c66ee5643876474d879e4d72b8803bf0501749f82291f5b9b2b87a",
+      "runtime_config_sha256": "3f18837028a326ba8142c736569b4dfa2160b0d3df43e169c8d853214267a00f"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "1886bd59544db1fab59bd88e6c518ee64848ad7abb14f667a8e18108f3465623",
+          "path": "beta.go",
+          "fingerprint": "f43e64b29125f48c881594ea3490b52efcc32424aab4a934e9941d009296ad7e"
+        },
+        {
+          "item_id": "d06109a93b6dd9e628e33de874127f988b83fb66ed164b007d168721c75660fd",
+          "path": "alpha.go",
+          "fingerprint": "b4821b8cea41b373a4ddd582c7fbaedce3e19406048526303b743312b8e8b279"
+        },
+        {
+          "item_id": "d18b9ace0f6704aa7f73a0e352c8ccb8754554282045767647126786d76950a2",
+          "path": "gamma.go",
+          "fingerprint": "79803429f387999dfaef8b91933afea0748ba639155f488a70e20d15f8e2f58d"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "1886bd59544db1fab59bd88e6c518ee64848ad7abb14f667a8e18108f3465623",
+          "path": "beta.go",
+          "fingerprint": "f43e64b29125f48c881594ea3490b52efcc32424aab4a934e9941d009296ad7e"
+        },
+        {
+          "item_id": "d06109a93b6dd9e628e33de874127f988b83fb66ed164b007d168721c75660fd",
+          "path": "alpha.go",
+          "fingerprint": "b4821b8cea41b373a4ddd582c7fbaedce3e19406048526303b743312b8e8b279"
+        },
+        {
+          "item_id": "d18b9ace0f6704aa7f73a0e352c8ccb8754554282045767647126786d76950a2",
+          "path": "gamma.go",
+          "fingerprint": "79803429f387999dfaef8b91933afea0748ba639155f488a70e20d15f8e2f58d"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 23684
+  }
+}

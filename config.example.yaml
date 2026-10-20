@@ -21,7 +21,7 @@ review:
 
 ocr:
   # Pinned release. Upgrade only after running the contract tests.
-  version: "1.12.9"
+  version: "1.13.2"
   # Fixed per deployment; default 16, no adaptive fallback.
   concurrency: 16
   # `ocr` binary on PATH, or an absolute path
