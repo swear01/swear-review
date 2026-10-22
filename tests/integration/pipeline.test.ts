@@ -514,7 +514,7 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
     }
   });
 
-  it('Test C: re-push → entire PR re-reviewed, duplicate comments suppressed', async () => {
+  it('Test C: re-push → only new commits reviewed, force-push → full, duplicate comments suppressed', async () => {
     const github = new FakeGitHubApi();
     github.prHeadSha = repo.headSha;
     github.prBaseSha = repo.baseSha;
@@ -545,7 +545,7 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       const firstRun = harness.db.getRun(harness.db.getLatestJob('test-owner', 'demo', 7)!.review_run_id!)!;
       expect(firstRun.finding_count).toBe(3);
 
-      // second push at a NEW head — full review runs again
+      // second push at a NEW head — only the commits since the last review
       const newHead = addCommit(repo);
       github.prHeadSha = newHead;
       await push(7, newHead, 'synchronize');
@@ -555,6 +555,8 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       }, 30_000);
       const secondJob = harness.db.getLatestJob('test-owner', 'demo', 7)!;
       expect(secondJob.head_sha).toBe(newHead);
+      expect(secondJob.mode).toBe('incremental');
+      expect(secondJob.base_sha).toBe(repo.headSha);
       const secondRun = harness.db.getRun(secondJob.review_run_id!)!;
       expect(secondRun.finding_count).toBe(3);
 
@@ -565,6 +567,19 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       // sticky summary was updated (not duplicated)
       const summaries = github.callsTo('issues.createComment').filter((c) => String(c.params.body).includes('swear-review-summary'));
       expect(summaries.length).toBe(2); // one per run, updated in place
+
+      // force-push: the last reviewed SHA is no longer an ancestor → full review
+      github.compareStatus = 'diverged';
+      const rewrittenHead = addCommit(repo);
+      github.prHeadSha = rewrittenHead;
+      await push(7, rewrittenHead, 'synchronize');
+      await waitFor(() => {
+        const j = harness.db.getLatestJob('test-owner', 'demo', 7);
+        return j?.head_sha === rewrittenHead && j.status === 'completed';
+      }, 30_000);
+      const thirdJob = harness.db.getLatestJob('test-owner', 'demo', 7)!;
+      expect(thirdJob.mode).toBe('full');
+      expect(thirdJob.base_sha).toBe(repo.baseSha);
     } finally {
       harness.cleanup();
     }

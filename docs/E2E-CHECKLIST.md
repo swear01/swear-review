@@ -45,7 +45,7 @@ repository. It complements the local unit/integration suite.
 
 | # | Step | Expected result |
 | --- | --- | --- |
-| C1 | Push a second commit | The full PR is reviewed again |
+| C1 | Push a second commit | Only the new commit is reviewed (incremental) |
 | C2 | Push while a review is running | The stale run is cancelled or discarded |
 | C3 | Compare summaries/comments | Duplicate findings are not reposted |
 | C4 | Create enough findings to exceed one batch | Review comments are published in bounded batches |

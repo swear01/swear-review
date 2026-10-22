@@ -25,8 +25,10 @@ checkout → queue → OCR 1.9.x → findings
 
 - **Zero target-repository setup** — install the GitHub App; target repositories
   do not need Actions, a config file, or a dependency.
-- **Full-PR automatic reviews** — every configured PR event reviews the complete
-  merge-base-to-HEAD range.
+- **Incremental push reviews** — opening, reopening, or marking a PR ready reviews
+  the complete merge-base-to-HEAD range; a push reviews only the commits since
+  the last successful review. A force-push, or a repository with a gate, gets a
+  full review.
 - **Native GitHub output** — inline comments, one deduplicated sticky summary,
   and a Check Run.
 - **Duplicate suppression** — repeated full reviews do not spam the same finding.
