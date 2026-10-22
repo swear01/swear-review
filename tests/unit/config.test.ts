@@ -7,7 +7,7 @@ import { loadConfigFile, parseConfig, resolveRepoConfig, defaultConfig } from '.
 describe('parseConfig', () => {
   it('applies safe defaults for empty config', () => {
     const c = parseConfig('');
-    expect(c.ocr.version).toBe('1.13.2');
+    expect(c.ocr.version).toBe('1.13.3');
     expect(c.ocr.timeout_minutes).toBe(15);
     expect(c.ocr.concurrency).toBe(16);
     expect(c.llm.model).toBe('deepseek-v4-flash');
