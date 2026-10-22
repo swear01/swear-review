@@ -29,6 +29,8 @@ export class FakeGitHubApi implements GitHubApi {
   prState = 'open';
   /** permission returned for collaborator checks */
   permission = 'admin';
+  /** status returned by repos.compareCommitsWithBasehead ('diverged' simulates a force-push) */
+  compareStatus = 'ahead';
   /** if set, pulls.get throws */
   pullsGetError: Error | null = null;
   /** if set, createReview throws */
@@ -170,6 +172,7 @@ export class FakeGitHubApi implements GitHubApi {
           }),
         },
         repos: {
+          compareCommitsWithBasehead: fakeEndpoint('repos.compareCommitsWithBasehead', (n, p) => self.record(n, p), () => ({ data: { status: self.compareStatus } })),
           getCollaboratorPermissionLevel: fakeEndpoint('repos.getCollaboratorPermissionLevel', (n, p) => self.record(n, p), () => ({ data: { permission: self.permission } })),
           getRepoRulesets: fakeEndpoint('repos.getRepoRulesets', (n, p) => self.record(n, p), () => ({ data: self.rulesets })),
           createRepoRuleset: fakeEndpoint('repos.createRepoRuleset', (n, p) => self.record(n, p), () => {

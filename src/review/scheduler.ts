@@ -140,19 +140,39 @@ export class Scheduler {
       this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'provider gate reconciliation failed; continuing review');
     }
 
+    // Pushes review only the commits since the last successful review. Gated
+    // repositories keep full reviews so a blocking finding cannot be skipped.
+    let incrementalBase: string | null = null;
+    const last = this.ctx.db.getPullRequest(owner, name, prNumber)?.last_successful_review_sha ?? null;
+    if (action === 'synchronize' && resolved.gate.mode === 'off' && last === headSha) {
+      this.ctx.log.info({ repo: `${owner}/${name}`, pr: prNumber, headSha: headSha.slice(0, 7) }, 'head already reviewed; skipping push review');
+      return;
+    }
+    if (action === 'synchronize' && resolved.gate.mode === 'off' && last) {
+      try {
+        octokit ??= await this.ctx.github.getOctokit(installationId);
+        const cmp = await octokit.rest.repos.compareCommitsWithBasehead({ owner, repo: name, basehead: `${last}...${headSha}`, per_page: 1 });
+        // Force-push/rebase leaves `last` off the new history: fall back to full.
+        if (cmp.data.status === 'ahead') incrementalBase = last;
+      } catch (err) {
+        this.ctx.log.warn({ err: (err as Error).message, repo: `${owner}/${name}`, pr: prNumber }, 'could not compare with last reviewed SHA; using full review');
+      }
+    }
+    const mode = incrementalBase ? 'incremental' : 'full';
+
     const { jobId, cancelledRunningJobIds } = this.queue.enqueue({
       installationId,
       owner,
       repo: name,
       prNumber,
-      baseSha,
+      baseSha: incrementalBase ?? baseSha,
       headSha,
-      mode: 'full',
+      mode,
       trigger: action,
     });
     this.ctx.metrics.jobsSuperseded.inc({ repo: `${owner}/${name}` }, cancelledRunningJobIds.length > 0 ? 1 : 0);
     for (const id of cancelledRunningJobIds) this.ctx.worker?.requestCancel(id);
-    this.ctx.log.info({ jobId, repo: `${owner}/${name}`, pr: prNumber, headSha: headSha.slice(0, 7), action }, 'auto review job enqueued (full)');
+    this.ctx.log.info({ jobId, repo: `${owner}/${name}`, pr: prNumber, headSha: headSha.slice(0, 7), action, mode }, `auto review job enqueued (${mode})`);
   }
 
   // ---- issue_comment ---------------------------------------------------------

@@ -9,7 +9,8 @@ app:
 review:
   # Auto review on PR events
   auto: true
-  # Always full-PR review on automatic triggers
+  # Full review on open/reopen/ready; pushes review only commits since the
+  # last successful review (full after a force-push or when a gate is on)
   default_mode: full
   # Draft PRs: auto review off until ready_for_review (manual commands still work)
   review_drafts: false
