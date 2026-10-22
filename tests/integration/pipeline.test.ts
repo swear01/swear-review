@@ -568,6 +568,10 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       const summaries = github.callsTo('issues.createComment').filter((c) => String(c.params.body).includes('swear-review-summary'));
       expect(summaries.length).toBe(2); // one per run, updated in place
 
+      // redundant synchronize for the already-reviewed head enqueues nothing
+      await push(7, newHead, 'synchronize');
+      expect(harness.db.getLatestJob('test-owner', 'demo', 7)!.id).toBe(secondJob.id);
+
       // force-push: the last reviewed SHA is no longer an ancestor → full review
       github.compareStatus = 'diverged';
       const rewrittenHead = addCommit(repo);

@@ -144,7 +144,11 @@ export class Scheduler {
     // repositories keep full reviews so a blocking finding cannot be skipped.
     let incrementalBase: string | null = null;
     const last = this.ctx.db.getPullRequest(owner, name, prNumber)?.last_successful_review_sha ?? null;
-    if (action === 'synchronize' && resolved.gate.mode === 'off' && last && last !== headSha) {
+    if (action === 'synchronize' && resolved.gate.mode === 'off' && last === headSha) {
+      this.ctx.log.info({ repo: `${owner}/${name}`, pr: prNumber, headSha: headSha.slice(0, 7) }, 'head already reviewed; skipping push review');
+      return;
+    }
+    if (action === 'synchronize' && resolved.gate.mode === 'off' && last) {
       try {
         octokit ??= await this.ctx.github.getOctokit(installationId);
         const cmp = await octokit.rest.repos.compareCommitsWithBasehead({ owner, repo: name, basehead: `${last}...${headSha}`, per_page: 1 });
