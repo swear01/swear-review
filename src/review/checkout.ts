@@ -39,59 +39,64 @@ export async function checkoutRepository(input: CheckoutInput): Promise<Checkout
   const repoDir = path.join(workspaceDir, 'repo');
   mkdirSync(workspaceDir, { recursive: true });
 
-  const gitEnv = buildGitEnv(input.installationToken);
-  const template = input.cloneUrlTemplate ?? 'https://github.com/{owner}/{repo}.git';
-  const cloneUrl = template.replace('{owner}', input.owner).replace('{repo}', input.repo);
-  const cloneArgs = ['clone', '-c', 'core.hooksPath=/dev/null', '--no-checkout', '--quiet'];
-  const usePartialClone = input.partialClone !== false && cloneUrl.startsWith('https://');
-  if (usePartialClone) cloneArgs.push('--filter=blob:none');
-  cloneArgs.push(cloneUrl, repoDir);
-
-  await runGit(cloneArgs, { cwd: workspaceDir, env: gitEnv, signal: input.signal, log: input.log, context: 'clone' });
-
-  await runGit(
-    ['fetch', '--quiet', 'origin', input.baseSha, input.headSha],
-    { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'fetch shas' },
-  );
-
-  let mergeBase = '';
   try {
-    const res = await runGit(
-      ['merge-base', input.baseSha, input.headSha],
-      { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'merge-base', capture: true },
-    );
-    mergeBase = res.stdout.trim();
-  } catch {
-    mergeBase = '';
-  }
+    const gitEnv = buildGitEnv(input.installationToken);
+    const template = input.cloneUrlTemplate ?? 'https://github.com/{owner}/{repo}.git';
+    const cloneUrl = template.replace('{owner}', input.owner).replace('{repo}', input.repo);
+    const cloneArgs = ['clone', '-c', 'core.hooksPath=/dev/null', '--no-checkout', '--quiet'];
+    const usePartialClone = input.partialClone !== false && cloneUrl.startsWith('https://');
+    if (usePartialClone) cloneArgs.push('--filter=blob:none');
+    cloneArgs.push(cloneUrl, repoDir);
 
-  // Deepen if merge-base is unknown (shallow boundary). Loop a few times.
-  for (let attempt = 0; mergeBase === '' && attempt < 3; attempt++) {
+    await runGit(cloneArgs, { cwd: workspaceDir, env: gitEnv, signal: input.signal, log: input.log, context: 'clone' });
+
     await runGit(
-      ['fetch', '--deepen=200', '--quiet', 'origin'],
-      { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: `deepen ${attempt + 1}` },
+      ['fetch', '--quiet', 'origin', input.baseSha, input.headSha],
+      { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'fetch shas' },
     );
+
+    let mergeBase = '';
     try {
       const res = await runGit(
         ['merge-base', input.baseSha, input.headSha],
-        { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'merge-base retry', capture: true },
+        { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'merge-base', capture: true },
       );
       mergeBase = res.stdout.trim();
     } catch {
       mergeBase = '';
     }
+
+    // Deepen if merge-base is unknown (shallow boundary). Loop a few times.
+    for (let attempt = 0; mergeBase === '' && attempt < 3; attempt++) {
+      await runGit(
+        ['fetch', '--deepen=200', '--quiet', 'origin'],
+        { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: `deepen ${attempt + 1}` },
+      );
+      try {
+        const res = await runGit(
+          ['merge-base', input.baseSha, input.headSha],
+          { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'merge-base retry', capture: true },
+        );
+        mergeBase = res.stdout.trim();
+      } catch {
+        mergeBase = '';
+      }
+    }
+
+    if (mergeBase === '') {
+      throw new Error(`Unable to compute merge-base between ${input.baseSha} and ${input.headSha}`);
+    }
+
+    await runGit(
+      ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', input.headSha],
+      { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'checkout head' },
+    );
+
+    return { workspaceDir, repoDir, mergeBase };
+  } catch (err) {
+    cleanupWorkspace(workspaceDir);
+    throw err;
   }
-
-  if (mergeBase === '') {
-    throw new Error(`Unable to compute merge-base between ${input.baseSha} and ${input.headSha}`);
-  }
-
-  await runGit(
-    ['-c', 'core.hooksPath=/dev/null', 'checkout', '--quiet', '--detach', input.headSha],
-    { cwd: repoDir, env: gitEnv, signal: input.signal, log: input.log, context: 'checkout head' },
-  );
-
-  return { workspaceDir, repoDir, mergeBase };
 }
 
 export function cleanupWorkspace(workspaceDir: string): void {

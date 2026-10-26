@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createHarness, prEventPayload, waitFor } from '../helpers/harness.js';
 import { createLocalRepo, addCommit, cleanupLocalRepo, ensureTempReposDir, type LocalRepo } from '../helpers/local-repo.js';
@@ -412,6 +412,37 @@ describe('full pipeline (webhook → queue → worker → publish)', () => {
       }
     } finally {
       harness.cleanup();
+    }
+  });
+
+  it.each([
+    ['completed', {}, undefined],
+    ['failed', { MOCK_OCR_FAIL: '1' }, undefined],
+    ['failed', {}, 'file:///nonexistent/{owner}-{repo}.git'],
+  ])('removes the job workspace and keeps OCR sessions out of the service HOME (%s %j %s)', async (status, env, cloneTemplate) => {
+    const github = new FakeGitHubApi();
+    github.prHeadSha = repo.headSha;
+    github.prBaseSha = repo.baseSha;
+    const directory = mkdtempSync(path.join(tmpdir(), 'swear-cleanup-'));
+    const workspaceDir = path.join(directory, 'ws');
+    const serviceHome = path.join(directory, 'home');
+    const config = FakeGitHubApi.config({ binary: MOCK_OCR, workspaceDir, cloneTemplate: cloneTemplate ?? `file://${repo.bareDir}` });
+    config.ocr.extra_env = { MOCK_OCR_SESSION: '1', ...env };
+    const harness = createHarness(config, github);
+    const realHome = process.env.HOME;
+    process.env.HOME = serviceHome;
+    try {
+      const event = prEventPayload();
+      event.pull_request = { ...(event.pull_request as Record<string, unknown>), head: { sha: repo.headSha, ref: 'feature' }, base: { sha: repo.baseSha, ref: 'main' } };
+      (event.repository as Record<string, unknown>).private = true;
+      await harness.scheduler.handleEvent('pull_request', event);
+      await waitFor(() => harness.db.getLatestJob('test-owner', 'demo', 42)?.status === status, 30_000);
+      await waitFor(() => readdirSync(workspaceDir).length === 0);
+      expect(existsSync(serviceHome)).toBe(false);
+    } finally {
+      process.env.HOME = realHome;
+      harness.cleanup();
+      rmSync(directory, { recursive: true, force: true });
     }
   });
 

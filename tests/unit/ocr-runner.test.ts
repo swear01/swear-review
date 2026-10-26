@@ -63,6 +63,18 @@ describe('runOcr', () => {
     expect(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 2)).toEqual(['--tools', toolsFile]);
   });
 
+  it('keeps the isolated HOME even when ocrEnv carries the service HOME', async () => {
+    const binary = path.join(root, 'home.mjs');
+    writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(process.env.HOME);\n', { mode: 0o755 });
+    const homeDir = path.join(root, 'ocr-home');
+    const result = await runOcr({
+      baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 2,
+      timeoutMinutes: 15, hardTimeoutMinutes: 1, binary,
+      repoDir: root, homeDir, ocrEnv: { HOME: '/home/service-user' }, log: createLogger('silent'),
+    });
+    expect(result.stdout.trim()).toBe(homeDir);
+  });
+
   it('gives each OCR process a stable, distinct session header while preserving extra headers', async () => {
     const binary = path.join(root, 'headers.mjs');
     writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(process.env.OCR_LLM_EXTRA_HEADERS); console.log(process.env.OCR_LLM_EXTRA_HEADERS);\n', { mode: 0o755 });
