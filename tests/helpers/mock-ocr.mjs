@@ -3,8 +3,10 @@
 // echoes the exact invocation args so tests can assert:
 //   --from <immutable merge-base SHA>  --to <head SHA>  --concurrency 16  --format json
 // Set MOCK_OCR_FAIL=1 to simulate an OCR/LLM infrastructure failure.
+// Set MOCK_OCR_SESSION=1 to write a session file under $HOME like real OCR.
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -19,6 +21,12 @@ const concurrency = get('--concurrency');
 const format = get('--format');
 const repo = get('--repo');
 const timeout = get('--timeout');
+
+if (process.env.MOCK_OCR_SESSION === '1') {
+  const sessionDir = path.join(homedir(), '.opencodereview', 'sessions', repo.replace(/[^A-Za-z0-9]+/g, '-'));
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(path.join(sessionDir, 'mock.jsonl'), '{}\n');
+}
 
 const fixturePath =
   process.env.MOCK_OCR_FIXTURE ||

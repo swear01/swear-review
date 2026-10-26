@@ -53,10 +53,12 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    HOME: input.homeDir,
     OCR_NO_UPDATE: '1',
     NO_COLOR: '1',
     ...input.ocrEnv,
+    // Last: ocrEnv may carry process.env (buildGitEnv), whose HOME would send
+    // OCR sessions to the service user's real ~/.opencodereview.
+    HOME: input.homeDir,
   };
   const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
   if (/(?:^|,)\s*x-opencode-session\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
