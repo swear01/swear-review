@@ -276,6 +276,9 @@ Commands are entered as PR conversation comments:
 Manual commands require OWNER, ADMIN, MAINTAIN, or WRITE permission. External
 contributors cannot consume the configured model quota by default.
 
+Re-running a Swear Review check reviews the full PR; requests for a closed PR
+or an older head are ignored.
+
 ## Deployment and upgrades
 
 See **[`docs/deployment.md`](docs/deployment.md)** for:

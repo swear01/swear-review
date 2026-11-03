@@ -313,12 +313,18 @@ export class Scheduler {
       if (!job) {
         this.ctx.log.info({ checkRunId: checkRun.id }, 'no job found for re-requested check run');
       } else {
+        const octokit = await this.ctx.github.getOctokit(job.installation_id);
+        const pr = await octokit.rest.pulls.get({ owner: job.repo_owner, repo: job.repo_name, pull_number: job.pr_number });
+        if (pr.data.state !== 'open' || pr.data.head.sha !== job.head_sha) {
+          this.ctx.log.info({ checkRunId: checkRun.id, headSha: job.head_sha }, 'ignoring stale re-requested check run');
+          return;
+        }
         const { jobId, cancelledRunningJobIds } = this.queue.enqueue({
           installationId: job.installation_id,
           owner: job.repo_owner,
           repo: job.repo_name,
           prNumber: job.pr_number,
-          baseSha: job.base_sha,
+          baseSha: pr.data.base.sha,
           headSha: job.head_sha,
           mode: 'full',
           trigger: 'check_run.rerequested',
