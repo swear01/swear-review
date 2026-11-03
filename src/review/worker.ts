@@ -1,9 +1,10 @@
 import { mkdirSync } from 'node:fs';
 import type { ServiceContext } from '../context.js';
-import type { JobRecord } from '../types.js';
+import type { JobRecord, OcrResult } from '../types.js';
 import type { Logger } from '../util/logger.js';
 import { checkoutRepository, cleanupWorkspace, buildGitEnv } from './checkout.js';
-import { runOcr, createOcrHome } from './ocr-runner.js';
+import { runOcr, createOcrHome, type OcrRunInput, type OcrProcessResult } from './ocr-runner.js';
+import { fingerprintFinding, isDuplicate } from './dedup.js';
 import { parseOcrOutput } from './ocr-adapter.js';
 import { publishReviewResult } from './publisher.js';
 import { computeGateDecision } from '../gate/policy.js';
@@ -87,6 +88,7 @@ export class Worker {
     let checkRunId: number | null = null;
     let workspaceDir: string | null = null;
     const startedAt = Date.now();
+    let attemptedModel: string | undefined;
 
     try {
       // Cancellation requested before this job registered its controller.
@@ -104,6 +106,7 @@ export class Worker {
 
       this.ctx.metrics.reviewsTotal.inc({ repo: `${job.repo_owner}/${job.repo_name}`, mode: job.mode });
       const resolved = resolveRepoConfig(this.ctx.config, job.repo_owner, job.repo_name);
+      attemptedModel = resolved.llm.model;
       const octokit = await this.ctx.github.getOctokit(job.installation_id);
 
       // Check Run — always created (spec §22).
@@ -158,7 +161,8 @@ export class Worker {
       // ---- OCR -------------------------------------------------------------
       const homeDir = createOcrHome(checkout.workspaceDir);
       mkdirSync(homeDir, { recursive: true });
-      const proc = await runOcr({
+      const ocrStartedAt = Date.now();
+      const input: OcrRunInput = {
         baseSha: fromSha,
         headSha: job.head_sha,
         concurrency: resolved.ocr.concurrency,
@@ -180,7 +184,8 @@ export class Worker {
         },
         signal: ac.signal,
         log,
-      });
+      };
+      let proc = await runOcr(input);
 
       if (ac.signal.aborted || proc.killed) {
         await this.cancelJob(job, runId, checkRunId, ac, proc.timedOut ? 'timed out' : 'superseded (cancelled)', log);
@@ -195,6 +200,54 @@ export class Worker {
         throw new ReviewError('parse', (err as Error).message);
       }
 
+      let fallbackError: string | undefined;
+      const fallback = resolved.llm.chatgpt_fallback;
+      if (fallback && isGatewayQuotaExhaustion(proc, ocr)) {
+        const primary = ocr;
+        const primaryProc = proc;
+        const remainingMinutes = resolved.ocr.hard_timeout_minutes - (Date.now() - ocrStartedAt) / 60_000;
+        if (remainingMinutes > 0) {
+          throwIfAborted(ac.signal);
+          attemptedModel = fallback.model ?? 'ChatGPT (account default)';
+          log.warn({ model: attemptedModel }, 'DeepSeek gateway rate-limit retries exhausted; attempting ChatGPT once');
+          try {
+            proc = await runOcr({ ...input, chatgpt: fallback, homeDir: createOcrHome(checkout.workspaceDir) + '-chatgpt', hardTimeoutMinutes: remainingMinutes });
+            if (proc.killed && !ac.signal.aborted && primary.comments.length > 0) {
+              throw new ReviewError('ocr', proc.timedOut ? 'ChatGPT fallback timed out' : 'ChatGPT fallback was interrupted');
+            }
+            if (ac.signal.aborted || proc.killed) {
+              await this.cancelJob(job, runId, checkRunId, ac, proc.timedOut ? 'timed out' : 'superseded (cancelled)', log);
+              return;
+            }
+            ocr = parseOcrOutput(proc.stdout);
+            attemptedModel = ocr.model ?? attemptedModel;
+            ocr.model ??= attemptedModel;
+            if (!['complete', 'success'].includes(ocr.status)
+              || (ocr.coverage?.completed ?? 0) < (primary.coverage?.selected ?? 1)
+              || (ocr.coverage?.failed ?? 0) > 0) {
+              fallbackError = 'ChatGPT fallback did not complete the selected PR range';
+            }
+          } catch (err) {
+            if (ac.signal.aborted || primary.comments.length === 0) throw err;
+            fallbackError = `ChatGPT fallback failed: ${(err as Error).message}`;
+            ocr = primary;
+            proc = primaryProc;
+          }
+          if (primary.comments.length > 0) {
+            const existing = ocr.comments.map((f) => ({
+              path: f.path, start_line: f.startLine ?? null, end_line: f.endLine ?? null,
+              category: f.category ?? null, body: f.message,
+              fingerprint: fingerprintFinding({ owner: job.repo_owner, repo: job.repo_name, prNumber: job.pr_number, ...f }),
+            }));
+            const retained = primary.comments.filter((f) => !isDuplicate(existing, f,
+              fingerprintFinding({ owner: job.repo_owner, repo: job.repo_name, prNumber: job.pr_number, ...f })));
+            ocr.comments = [...ocr.comments, ...retained];
+            ocr.model = `${primary.model ?? resolved.llm.model} + ${attemptedModel}`;
+            if (ocr.status === 'failed') ocr.status = 'partial';
+          }
+        }
+      }
+
       if (ocr.status === 'failed') {
         this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
         throw new ReviewError('ocr', `OCR review failed: ${ocr.message ?? 'unknown error'}`);
@@ -206,9 +259,9 @@ export class Worker {
       if (ocr.configuredConcurrency !== undefined && ocr.configuredConcurrency !== resolved.ocr.concurrency) {
         log.warn({ ocrConcurrency: ocr.configuredConcurrency, expected: resolved.ocr.concurrency }, 'OCR reported unexpected concurrency');
       }
-      const reviewError = proc.exitCode !== 0 || !['complete', 'success', 'skipped'].includes(ocr.status) || (ocr.coverage?.failed ?? 0) > 0
+      const reviewError = fallbackError ?? (proc.exitCode !== 0 || !['complete', 'success', 'skipped'].includes(ocr.status) || (ocr.coverage?.failed ?? 0) > 0
         ? `OCR review incomplete: status=${ocr.status}, exit=${proc.exitCode}, failed items=${ocr.coverage?.failed ?? 'unknown'}`
-        : undefined;
+        : undefined);
 
       const findings = ocr.comments;
       this.ctx.metrics.findingsTotal.inc({ repo: `${job.repo_owner}/${job.repo_name}` }, findings.length);
@@ -321,7 +374,7 @@ export class Worker {
         await this.cancelJob(job, runId, checkRunId, ac, 'superseded (cancelled)', log);
         return;
       }
-      await this.failJob(job, runId, checkRunId, err as Error, log, startedAt);
+      await this.failJob(job, runId, checkRunId, err as Error, log, startedAt, attemptedModel);
     } finally {
       if (workspaceDir) cleanupWorkspace(workspaceDir);
       this.active.delete(job.id);
@@ -417,17 +470,18 @@ export class Worker {
     }
   }
 
-  private async failJob(job: JobRecord, runId: number | null, checkRunId: number | null, err: Error, log: Logger, startedAt: number): Promise<void> {
+  private async failJob(job: JobRecord, runId: number | null, checkRunId: number | null, err: Error, log: Logger, startedAt: number, attemptedModel?: string): Promise<void> {
     const duration = (Date.now() - startedAt) / 1000;
     const kind = err instanceof ReviewError ? err.kind : 'unknown';
     if (kind === 'ocr' || kind === 'parse') {
       this.ctx.metrics.ocrProcessFailures.inc({ repo: `${job.repo_owner}/${job.repo_name}` });
     }
     const resolved = resolveRepoConfig(this.ctx.config, job.repo_owner, job.repo_name);
+    const model = attemptedModel ?? resolved.llm.model;
     const failClosed = resolved.gate.fail_closed_on_review_error;
 
     if (runId != null) {
-      this.ctx.db.completeRun(runId, 'failed', 0, err.message.slice(0, 2000));
+      this.ctx.db.completeRun(runId, 'failed', 0, err.message.slice(0, 2000), { model });
     }
     if (checkRunId != null) {
       try {
@@ -440,14 +494,14 @@ export class Worker {
           output: {
             title: 'Swear Review failed',
             summary: 'Review infrastructure/model failure',
-            text: `Mode: ${job.mode}\nModel: ${resolved.llm.model}\nOCR: ${resolved.ocr.version}\n\nReview failed (${kind}): ${err.message.slice(0, 2000)}`,
+            text: `Mode: ${job.mode}\nModel: ${model}\nOCR: ${resolved.ocr.version}\n\nReview failed (${kind}): ${err.message.slice(0, 2000)}`,
           },
         });
         await upsertStickySummary(octokit, log, {
           owner: job.repo_owner,
           repo: job.repo_name,
           prNumber: job.pr_number,
-          body: `Mode: ${job.mode === 'full' ? 'Full PR' : 'Incremental'}\nModel: ${resolved.llm.model}\nOCR: ${resolved.ocr.version}\n\nStatus: ❌ Failed — review infrastructure/model failure.\nReason: ${err.message.slice(0, 500)}\n\nYou can retry with \`/swear-review full\`.`,
+          body: `Mode: ${job.mode === 'full' ? 'Full PR' : 'Incremental'}\nModel: ${model}\nOCR: ${resolved.ocr.version}\n\nStatus: ❌ Failed — review infrastructure/model failure.\nReason: ${err.message.slice(0, 500)}\n\nYou can retry with \`/swear-review full\`.`,
         }).catch(() => undefined);
       } catch {
         /* best-effort */
@@ -465,4 +519,11 @@ export class Worker {
 
 function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new ReviewError('unknown', 'aborted');
+}
+
+function isGatewayQuotaExhaustion(proc: OcrProcessResult, ocr: OcrResult): boolean {
+  const failures = ocr.coverage?.failures ?? [];
+  return !proc.killed && !proc.timedOut && ['failed', 'partial'].includes(ocr.status)
+    && ocr.providerRateLimitExhausted === true && failures.length > 0
+    && failures.every((failure) => failure.classification === 'provider');
 }

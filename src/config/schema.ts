@@ -119,6 +119,10 @@ const LlmConfigSchema = z
     url: z.string().default('https://opencode.ai/zen/go/v1/chat/completions'),
     model: z.string().default('deepseek-v4-flash'),
     use_anthropic: z.boolean().default(false),
+    chatgpt_fallback: z.object({
+      auth_dir: z.string().refine((value) => path.isAbsolute(value), 'ChatGPT auth_dir must be an absolute path'),
+      model: z.string().trim().min(1).optional(),
+    }).optional(),
   })
   .default({ url: 'https://opencode.ai/zen/go/v1/chat/completions', model: 'deepseek-v4-flash', use_anthropic: false });
 
