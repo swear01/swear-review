@@ -1,0 +1,138 @@
+{
+  "status": "complete",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review complete: 3 finding(s) across 3 selected item(s).",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 3,
+    "total_tokens": 108908,
+    "input_tokens": 105198,
+    "output_tokens": 3710,
+    "cache_read_tokens": 61824,
+    "elapsed": "1m1s"
+  },
+  "tool_calls": {
+    "total": 7,
+    "by_tool": {
+      "code_comment": 1,
+      "code_search": 2,
+      "file_find": 2,
+      "file_read": 2
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "alpha/main.go",
+      "content": "Sanitized finding from OCR v1.13.5.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 3,
+      "end_line": 4,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "beta/main.go",
+      "content": "Sanitized finding from OCR v1.13.5.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 3,
+      "end_line": 4,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "gamma/main.go",
+      "content": "Sanitized finding from OCR v1.13.5.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 3,
+      "end_line": 4,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    }
+  ],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "alpha/main.go",
+        "beta/main.go",
+        "gamma/main.go"
+      ]
+    }
+  ],
+  "session_id": "2f29364b-3b73-4da2-b6dd-43aa0587a1db",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "2f29364b-3b73-4da2-b6dd-43aa0587a1db",
+    "operation": "review",
+    "terminal_state": "complete",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "requested_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "resolved_base": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "resolved_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "exact_range": "746b2d3e87b646de72128452f6990f70b5b8442d..960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "source_artifact_sha256": "8bc95bca9effce73509ada09256bb80d716cf28d8fc7b914a54ced53120fbc34"
+    },
+    "execution": {
+      "ocr_version": "v1.13.5",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "829bea598cee2689683e3fc90c6a7bf0c2494c56bb85e76157189cf875986d91",
+      "runtime_config_sha256": "3f18837028a326ba8142c736569b4dfa2160b0d3df43e169c8d853214267a00f"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51"
+        }
+      ],
+      "reused": [],
+      "failed": [],
+      "waived": []
+    },
+    "elapsed_ms": 60565
+  }
+}
