@@ -1,0 +1,137 @@
+{
+  "status": "failed",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review failed (cancelled): 0 finding(s); 3 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 0,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "elapsed": "5s"
+  },
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "alpha/main.go",
+        "beta/main.go",
+        "gamma/main.go"
+      ]
+    }
+  ],
+  "session_id": "081c7588-e2f8-4cc2-855d-db5dafc03496",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "081c7588-e2f8-4cc2-855d-db5dafc03496",
+    "operation": "review",
+    "terminal_state": "failed",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "requested_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "resolved_base": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "resolved_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "exact_range": "746b2d3e87b646de72128452f6990f70b5b8442d..960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "source_artifact_sha256": "8bc95bca9effce73509ada09256bb80d716cf28d8fc7b914a54ced53120fbc34"
+    },
+    "execution": {
+      "ocr_version": "v1.13.5",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "829bea598cee2689683e3fc90c6a7bf0c2494c56bb85e76157189cf875986d91",
+      "runtime_config_sha256": "3f18837028a326ba8142c736569b4dfa2160b0d3df43e169c8d853214267a00f"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51"
+        }
+      ],
+      "completed": [],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b",
+          "classification": "cancelled",
+          "reason": "file review was cancelled"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc",
+          "classification": "cancelled",
+          "reason": "file review was cancelled"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51",
+          "classification": "cancelled",
+          "reason": "file review was cancelled"
+        }
+      ],
+      "waived": []
+    },
+    "run_failure": {
+      "classification": "cancelled",
+      "reason": "review was cancelled"
+    },
+    "elapsed_ms": 4782
+  },
+  "retry_report": {
+    "schema_version": "ocr.llm-retry-report/v1",
+    "total_requests": 1,
+    "retried_requests": 0,
+    "total_retries": 0,
+    "recovered_requests": 0,
+    "failed_requests": 0,
+    "cancelled_requests": 1,
+    "requests": [
+      {
+        "logical_request_id": "8c1f45695d5d13f889b70d1c25e3871b46fbec6e44ef6890134a525f36f8d637",
+        "provider": "",
+        "model": "deepseek-flash",
+        "file_path": "alpha/main.go,beta/main.go,gamma/main.go",
+        "task_type": "plan_task",
+        "request_no": 1,
+        "outcome": "cancelled",
+        "attempts": [
+          {
+            "attempt": 1,
+            "outcome": "error",
+            "error_class": "cancelled",
+            "failure_phase": "context",
+            "duration_to_headers_ms": 4585
+          }
+        ]
+      }
+    ]
+  }
+}

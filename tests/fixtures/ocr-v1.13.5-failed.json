@@ -1,0 +1,152 @@
+{
+  "status": "failed",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review failed: 0 finding(s); 3 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 0,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "elapsed": "0s"
+  },
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": null,
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "alpha/main.go",
+        "beta/main.go",
+        "gamma/main.go"
+      ]
+    }
+  ],
+  "session_id": "c8be09d4-9822-4367-9182-992990c20bb8",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "c8be09d4-9822-4367-9182-992990c20bb8",
+    "operation": "review",
+    "terminal_state": "failed",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "requested_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "resolved_base": "746b2d3e87b646de72128452f6990f70b5b8442d",
+      "resolved_head": "960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "exact_range": "746b2d3e87b646de72128452f6990f70b5b8442d..960dc878676a144de4ff1d6bbaeb7abf1aea7d94",
+      "source_artifact_sha256": "8bc95bca9effce73509ada09256bb80d716cf28d8fc7b914a54ced53120fbc34"
+    },
+    "execution": {
+      "ocr_version": "v1.13.5",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "829bea598cee2689683e3fc90c6a7bf0c2494c56bb85e76157189cf875986d91",
+      "runtime_config_sha256": "b879bee797b49a075eae8cb9c57ade6c423a60a76207a5a180754b5035266e83"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51"
+        }
+      ],
+      "completed": [],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "7fb719a15d73a583353a3935f2acb0791ccd9236dae841edd8dcb8e9e969ff4b",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "0a3ccb87bad61f94a19628c5a62b69e7b00367b43e7bcdfa390c730b8c9058cc",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "2385fe15e678f8ea5430fdf40797123332a3ca20e2c05ec5ce740a27a1f11f51",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        }
+      ],
+      "waived": []
+    },
+    "elapsed_ms": 195
+  },
+  "retry_report": {
+    "schema_version": "ocr.llm-retry-report/v1",
+    "total_requests": 2,
+    "retried_requests": 0,
+    "total_retries": 0,
+    "recovered_requests": 0,
+    "failed_requests": 2,
+    "cancelled_requests": 0,
+    "requests": [
+      {
+        "logical_request_id": "eb4aa3567ae90cacbbef3e7503b6b71baf7175baa0c2460d19eb6c8dd4a0b07a",
+        "provider": "",
+        "model": "deepseek-flash",
+        "file_path": "alpha/main.go,beta/main.go,gamma/main.go",
+        "task_type": "main_task",
+        "request_no": 1,
+        "outcome": "failed",
+        "attempts": [
+          {
+            "attempt": 1,
+            "outcome": "error",
+            "error_class": "authentication",
+            "failure_phase": "http",
+            "status_code": 401
+          }
+        ]
+      },
+      {
+        "logical_request_id": "f9d13c5d3d4e6de7c669e170f53a267bb63b5207d351402f9b7b912cfcbd2bf0",
+        "provider": "",
+        "model": "deepseek-flash",
+        "file_path": "alpha/main.go,beta/main.go,gamma/main.go",
+        "task_type": "plan_task",
+        "request_no": 1,
+        "outcome": "failed",
+        "attempts": [
+          {
+            "attempt": 1,
+            "outcome": "error",
+            "error_class": "authentication",
+            "failure_phase": "http",
+            "status_code": 401,
+            "duration_to_headers_ms": 3
+          }
+        ]
+      }
+    ]
+  }
+}
