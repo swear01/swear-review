@@ -138,11 +138,13 @@ console.log(JSON.stringify({ args: process.argv.slice(2), config: JSON.parse(rea
       expect(run.exitCode).toBe(0);
       const [first, second] = run.stdout.trim().split('\n');
       expect(first).toBe(second);
-      expect(first).toMatch(/^X-Custom="one,x-opencode-session=two",x-opencode-session=[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(first).toMatch(/^X-Custom="one,x-opencode-session=two",x-opencode-session=([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}),X-Session-ID=\1$/);
     }
     expect(runs[0].stdout).not.toBe(runs[1].stdout);
-    await expect(runOcr({ ...input, ocrEnv: { OCR_LLM_EXTRA_HEADERS: 'X-Custom=yes, X-OpenCode-Session=shared' } }))
-      .rejects.toThrow('managed per review');
+    for (const header of ['X-OpenCode-Session', 'x-SESSION-id', 'X-Session-Affinity']) {
+      await expect(runOcr({ ...input, ocrEnv: { OCR_LLM_EXTRA_HEADERS: `X-Custom=yes, ${header}=shared` } }))
+        .rejects.toThrow('managed per review');
+    }
   });
 
   it.each([
