@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +13,7 @@ let root: string;
 beforeAll(() => {
   chmodSync(helper, 0o755);
   root = mkdtempSync(path.join(tmpdir(), 'swear-review-ocr-runner-'));
+  execFileSync('git', ['init', '-q', root]);
 });
 
 afterAll(() => rmSync(root, { recursive: true, force: true }));
