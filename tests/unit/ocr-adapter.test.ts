@@ -9,6 +9,24 @@ const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)
 const latestSkippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.13.5-skipped.json');
 
 describe('parseOcrOutput', () => {
+  it('recognizes exhausted 429 retries from a real 1.13.5 capture, excluding mixed failures and cancellations', () => {
+    const raw = readFileSync(path.join(path.dirname(fixturePath), 'ocr-v1.13.5-quota.json'), 'utf8');
+    expect(parseOcrOutput(raw).providerRateLimitExhausted).toBe(true);
+    const mixed = JSON.parse(raw);
+    mixed.retry_report.requests[0].attempts.at(-1).status_code = 500;
+    expect(parseOcrOutput(JSON.stringify(mixed)).providerRateLimitExhausted).toBe(false);
+    const cancelled = JSON.parse(raw);
+    cancelled.retry_report.requests.push({ outcome: 'cancelled', attempts: [] });
+    expect(parseOcrOutput(JSON.stringify(cancelled)).providerRateLimitExhausted).toBe(false);
+    const unretried = JSON.parse(raw);
+    for (const request of unretried.retry_report.requests) request.attempts = [request.attempts.at(-1)];
+    expect(parseOcrOutput(JSON.stringify(unretried)).providerRateLimitExhausted).toBe(false);
+    const textOnly = JSON.parse(raw);
+    delete textOnly.retry_report;
+    textOnly.comments = [{ path: 'src/main.ts', content: 'insufficient_quota HTTP 429 exhausted' }];
+    expect(parseOcrOutput(JSON.stringify(textOnly)).providerRateLimitExhausted).toBe(false);
+  });
+
   it('parses the real v1.9.0 fixture (contract test)', () => {
     const raw = readFileSync(fixturePath, 'utf8');
     const result = parseOcrOutput(raw);

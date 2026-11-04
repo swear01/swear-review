@@ -12,6 +12,7 @@ describe('parseConfig', () => {
     expect(c.ocr.concurrency).toBe(16);
     expect(c.llm.model).toBe('deepseek-v4-flash');
     expect(c.llm.url).toBe('https://opencode.ai/zen/go/v1/chat/completions');
+    expect(c.llm.chatgpt_fallback).toBeUndefined();
     expect(c.gate.mode).toBe('off');
     expect(c.gate.block_categories).toEqual(['bug', 'security']);
     expect(c.gate.fail_closed_on_review_error).toBe(true);
@@ -21,6 +22,12 @@ describe('parseConfig', () => {
     expect(c.workers.max_review_jobs).toBe(2);
     expect(c.publication.comment_batch_size).toBe(50);
     expect(c.security.auto_review_external_prs).toBe(false);
+  });
+
+  it('requires an absolute persistent ChatGPT auth path and accepts an optional model', () => {
+    expect(parseConfig('llm:\n  chatgpt_fallback:\n    auth_dir: /data/chatgpt-auth').llm.chatgpt_fallback)
+      .toEqual({ auth_dir: '/data/chatgpt-auth' });
+    expect(() => parseConfig('llm:\n  chatgpt_fallback:\n    auth_dir: relative')).toThrow('absolute path');
   });
 
   it('validates the OCR tools file at config load', () => {

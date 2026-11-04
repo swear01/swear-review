@@ -79,6 +79,8 @@ export interface OcrResult {
   sessionId?: string;
   ocrVersion?: string;
   configuredConcurrency?: number;
+  /** Every failed logical provider request exhausted retries on HTTP 429. */
+  providerRateLimitExhausted?: boolean;
   coverage?: {
     selected: number;
     completed: number;

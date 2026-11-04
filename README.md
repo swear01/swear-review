@@ -182,6 +182,12 @@ explicit value after measuring their memory and provider limits.
 The bundled tool file is derived from Alibaba Open Code Review v1.13.2's
 `tools.json`; its Apache 2.0 license is in `config/LICENSE-ocr-tools.txt`.
 
+DeepSeek remains the primary model. Optional `llm.chatgpt_fallback` retries the
+same commit range once after OCR reports exhausted HTTP 429 retries and only
+provider failures. Both attempts share the original hard timeout and fixed
+concurrency. Other errors do not trigger fallback. ChatGPT credentials stay in a
+private persistent auth store; see [setup and limits](docs/deployment.md#chatgpt-quota-fallback).
+
 Repository overrides use the precedence:
 
 ```text
