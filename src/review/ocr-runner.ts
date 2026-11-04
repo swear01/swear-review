@@ -61,10 +61,11 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     HOME: input.homeDir,
   };
   const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
-  if (/(?:^|,)\s*x-opencode-session\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
-    throw new Error('x-opencode-session is managed per review; remove it from OCR_LLM_EXTRA_HEADERS');
+  if (/(?:^|,)\s*(?:x-opencode-session|x-session-id|x-session-affinity)\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
+    throw new Error('Session headers are managed per review; remove them from OCR_LLM_EXTRA_HEADERS');
   }
-  env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${randomUUID()}`].filter(Boolean).join(',');
+  const sessionId = randomUUID();
+  env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${sessionId}`, `X-Session-ID=${sessionId}`].filter(Boolean).join(',');
 
   let child: ChildProcess;
   try {

@@ -14,12 +14,13 @@ Every release must preserve these invariants:
 - `/data` and the configured SQLite database survive application restarts.
 - A release is not complete until `/healthz`, `/readyz`, and the logs are checked.
 
-Each OCR review process receives a fresh `x-opencode-session` UUID through
-OCR's `OCR_LLM_EXTRA_HEADERS`. All requests and SDK retries in that review
-reuse it; separate reviews receive different IDs. Existing extra headers are
-preserved. Do not configure `x-opencode-session` yourself: the runner rejects
-that override to prevent unrelated reviews sharing a fixed ID. The gateway
-must preserve this header when forwarding to OpenCode Go.
+Each OCR review process receives one fresh UUID in both `X-Session-ID` and
+`x-opencode-session` through OCR's `OCR_LLM_EXTRA_HEADERS`. All requests and
+SDK retries in that review reuse it; separate reviews receive different IDs. Existing extra headers are
+preserved. `X-Session-ID` pins the review to a CLIProxyAPI upstream key; the
+gateway must preserve `x-opencode-session` when forwarding to OpenCode Go.
+Do not configure either header or `X-Session-Affinity` yourself: the runner
+rejects those overrides to prevent unrelated reviews sharing a fixed ID.
 
 ## Docker Compose (recommended)
 
