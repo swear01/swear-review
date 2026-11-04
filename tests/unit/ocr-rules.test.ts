@@ -26,12 +26,12 @@ function fixture(files: string[] = []) {
 }
 
 describe('prepareOcrRules', () => {
-  it('adds tracked CUDA/HIP with literal globs while retaining default exclusions', () => {
+  it('adds tracked CUDA/HIP with literal globs while retaining default exclusions', async () => {
     const { repo, home } = fixture([
       'src/kernel.cu', 'src/Header.CUH', 'src/ops.hip', 'src/a[1]*?.cu', 'src/main.cpp',
       'nested/vendor/x.cu', 'fixtures/x.cu', 'src/x.generated.cu', 'src/testdata/x.cuh',
     ]);
-    const custom = JSON.parse(readFileSync(prepareOcrRules(repo, home), 'utf8'));
+    const custom = JSON.parse(readFileSync(await prepareOcrRules(repo, home), 'utf8'));
     expect(custom).toEqual({ include: ['src/Header.CUH', 'src/a\\[1\\]\\*\\?.cu', 'src/kernel.cu', 'src/ops.hip'], exclude: [] });
     const global = JSON.parse(readFileSync(path.join(home, '.opencodereview', 'rule.json'), 'utf8'));
     expect(global).toMatchObject({ rules: [{ path: '**/*.{cu,cuh,hip}', merge_system_rule: true }] });
@@ -40,44 +40,69 @@ describe('prepareOcrRules', () => {
     expect(custom).not.toHaveProperty('rules');
   });
 
-  it('preserves project filter overrides and leaves rule text and relative references in the repository', () => {
+  it('preserves project filter overrides and leaves rule text and relative references in the repository', async () => {
     const { repo, home, config } = fixture(['fixtures/kernel.cu', 'src/kernel.cu']);
     const original = JSON.stringify({
       include: ['**/fixtures/**', '**/*.md'], exclude: ['src/kernel.cu'],
       rules: [{ path: '**/*.cu', rule: 'rules/team.md' }],
     });
     writeFileSync(config, original);
-    const custom = JSON.parse(readFileSync(prepareOcrRules(repo, home), 'utf8'));
-    expect(custom).toEqual({ include: ['**/fixtures/**', '**/*.md', 'fixtures/kernel.cu', 'src/kernel.cu'], exclude: ['src/kernel.cu'] });
+    const custom = JSON.parse(readFileSync(await prepareOcrRules(repo, home), 'utf8'));
+    expect(custom).toEqual({ include: ['**/fixtures/**', '**/*.md'], exclude: ['src/kernel.cu'] });
     expect(readFileSync(config, 'utf8')).toBe(original);
     expect(custom).not.toHaveProperty('rules');
   });
 
-  it.each([{ include: 'src/**' }, { exclude: [1] }, { include: null }, [], 'invalid'])('rejects malformed filter configuration %j', (value) => {
-    const { repo, home, config } = fixture();
-    writeFileSync(config, JSON.stringify(value));
-    expect(() => prepareOcrRules(repo, home)).toThrow();
+  it('treats leading ! and extglob syntax literally like OCR', async () => {
+    const { repo, home, config } = fixture([
+      '!prefix/kernel.cu', '@(special)/kernel.cu', 'special/kernel.cu', 'src/kernel.cu',
+    ]);
+    writeFileSync(config, JSON.stringify({ exclude: ['!prefix/**', '@(special)/**'] }));
+    const custom = JSON.parse(readFileSync(await prepareOcrRules(repo, home), 'utf8'));
+    expect(custom).toEqual({ include: ['special/kernel.cu', 'src/kernel.cu'], exclude: ['!prefix/**', '@(special)/**'] });
   });
 
-  it('rejects escaping symlinks, dangling symlinks, directories, and malformed JSON', () => {
+  it('leaves already included or excluded brace paths to the original project filters', async () => {
+    const { repo, home, config } = fixture(['included/kernel{1}.cu', 'excluded/kernel{2}.cu', 'src/kernel.cu']);
+    writeFileSync(config, JSON.stringify({ include: ['included/**'], exclude: ['excluded/**'] }));
+    const custom = JSON.parse(readFileSync(await prepareOcrRules(repo, home), 'utf8'));
+    expect(custom).toEqual({ include: ['included/**', 'src/kernel.cu'], exclude: ['excluded/**'] });
+  });
+
+  it('fails closed on git enumeration failure or cancellation', async () => {
+    const { repo, home } = fixture();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(prepareOcrRules(repo, home, controller.signal)).rejects.toThrow();
+    rmSync(path.join(repo, '.git'), { recursive: true });
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow();
+  });
+
+  it.each([{ include: 'src/**' }, { exclude: [1] }, { include: null }, [], 'invalid'])('rejects malformed filter configuration %j', async (value) => {
+    const { repo, home, config } = fixture();
+    writeFileSync(config, JSON.stringify(value));
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow();
+  });
+
+  it('rejects escaping symlinks, dangling symlinks, directories, and malformed JSON', async () => {
     const { repo, home, config, root } = fixture();
     const outside = path.join(root, 'outside.json');
     writeFileSync(outside, '{}');
     symlinkSync(outside, config);
-    expect(() => prepareOcrRules(repo, home)).toThrow('regular file inside');
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow('regular file inside');
     rmSync(config);
     symlinkSync(path.join(root, 'missing.json'), config);
-    expect(() => prepareOcrRules(repo, home)).toThrow('regular file inside');
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow('regular file inside');
     rmSync(config);
     mkdirSync(config);
-    expect(() => prepareOcrRules(repo, home)).toThrow('regular file inside');
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow('regular file inside');
     rmSync(config, { recursive: true });
     writeFileSync(config, '{');
-    expect(() => prepareOcrRules(repo, home)).toThrow();
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow();
   });
 
-  it('rejects a literal brace path rather than broadening its include glob', () => {
+  it('rejects a literal brace path rather than broadening its include glob', async () => {
     const { repo, home } = fixture(['src/kernel{1}.cu']);
-    expect(() => prepareOcrRules(repo, home)).toThrow('cannot contain braces');
+    await expect(prepareOcrRules(repo, home)).rejects.toThrow('cannot contain braces');
   });
 });

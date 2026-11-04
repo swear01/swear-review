@@ -1,6 +1,7 @@
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { lstatSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import micromatch from 'micromatch';
 import { z } from 'zod';
 
@@ -8,15 +9,28 @@ const filters = z.object({
   include: z.array(z.string()).default([]),
   exclude: z.array(z.string()).default([]),
 });
-const defaultExcludes = JSON.parse(readFileSync(new URL('../../config/ocr-default-excludes.json', import.meta.url), 'utf8')) as string[];
+const execFileAsync = promisify(execFile);
+const matchOptions = { nonegate: true, noext: true, nocase: true, dot: true };
+// Doublestar treats parentheses and pipes literally; micromatch still parses them with noext.
+const matcher = (pattern: string) => micromatch.matcher(pattern.replace(/\\.|[()|]/g,
+  (value) => value.startsWith('\\') ? value : `\\${value}`), matchOptions);
+const defaultExcludes = (JSON.parse(readFileSync(new URL('../../config/ocr-default-excludes.json', import.meta.url), 'utf8')) as string[])
+  .map(matcher);
 const cudaRules = readFileSync(new URL('../../config/ocr-cuda-hip.md', import.meta.url), 'utf8');
 
-export function prepareOcrRules(repoDir: string, homeDir: string): string {
+export async function prepareOcrRules(repoDir: string, homeDir: string, signal?: AbortSignal): Promise<string> {
+  signal?.throwIfAborted();
   const project = projectFilters(repoDir);
-  const tracked = execFileSync('git', ['-C', repoDir, 'ls-files', '-z'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  const projectIncludes = project.include.map(matcher);
+  const projectExcludes = project.exclude.map(matcher);
+  const { stdout: tracked } = await execFileAsync('git', ['-C', repoDir, 'ls-files', '-z'], {
+    encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 30_000, signal,
+  });
+  signal?.throwIfAborted();
   const include = tracked.split('\0').filter((file) => /\.(?:cu|cuh|hip)$/i.test(file)
-    && (micromatch.isMatch(file, project.include, { nocase: true, dot: true })
-      || !micromatch.isMatch(file, defaultExcludes, { nocase: true, dot: true })))
+    && !projectExcludes.some((matches) => matches(file))
+    && !projectIncludes.some((matches) => matches(file))
+    && !defaultExcludes.some((matches) => matches(file)))
     .map((file) => {
       // shortcut: brace paths fail closed until OCR supports literal brace escaping.
       if (/[{}]/.test(file)) throw new Error('OCR CUDA file paths cannot contain braces');

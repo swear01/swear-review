@@ -92,7 +92,7 @@ jobs:
 
       - name: Verify CUDA and HIP selection and rules without model calls
         run: |
-          docker run --rm --entrypoint node \
+          docker run --rm --network none --entrypoint node \
             -v "$PWD/tests/helpers/verify-cuda-rules.mjs:/cuda-smoke.mjs:ro" \
             swear-review:ci /cuda-smoke.mjs /app
 

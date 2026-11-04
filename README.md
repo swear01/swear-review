@@ -193,8 +193,9 @@ still apply to CUDA/HIP unless a project explicitly includes those paths;
 OCR's `.gitignore`, binary and secret-path protections also remain in effect.
 GPU rules check correctness in the project's build and hardware context;
 they do not execute kernels or replace GPU tests.
-CUDA/HIP paths containing literal braces fail explicitly because OCR 1.13.5
-cannot safely escape them in an include pattern.
+CUDA/HIP paths containing literal braces need a project include matching their
+parent directory; otherwise they fail explicitly because OCR 1.13.5 cannot
+safely escape them in an include pattern.
 
 DeepSeek remains the primary model. Optional `llm.chatgpt_fallback` retries the
 same commit range once after OCR reports exhausted HTTP 429 retries and only

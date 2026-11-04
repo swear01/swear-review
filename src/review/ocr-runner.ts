@@ -42,7 +42,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
   input.signal?.throwIfAborted();
   if (input.chatgpt) prepareChatGptHome(input.homeDir, input.repoDir, input.chatgpt.auth_dir);
   const backgroundFile = repositoryBackgroundFile(input.repoDir);
-  const rulesFile = prepareOcrRules(input.repoDir, input.homeDir);
+  const rulesFile = await prepareOcrRules(input.repoDir, input.homeDir, input.signal);
   const args = [
     'review',
     '--from', input.baseSha,
