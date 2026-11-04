@@ -91,6 +91,17 @@ const OcrResultSchema = z.object({
     .object({ total: z.number().optional(), by_tool: z.record(z.string(), z.number()).optional() })
     .optional(),
   manifest: OcrManifestSchema,
+  retry_report: z.object({
+    schema_version: z.literal('ocr.llm-retry-report/v1'),
+    requests: z.array(z.object({
+      outcome: z.string(),
+      attempts: z.array(z.object({
+        status_code: z.number().int().optional(),
+        error_class: z.string().optional(),
+        failure_phase: z.string().optional(),
+      })),
+    })),
+  }).optional(),
 });
 
 const VALID_STATUSES = new Set(['complete', 'success', 'failed', 'partial', 'cancelled', 'skipped']);
@@ -138,6 +149,7 @@ export function parseOcrOutput(raw: string): OcrResult {
   }));
 
   const coverage = d.manifest?.coverage;
+  const failedRequests = d.retry_report?.requests.filter((request) => request.outcome === 'failed') ?? [];
   return {
     status: d.status,
     model: d.llm?.model ?? d.manifest?.execution?.model,
@@ -156,6 +168,13 @@ export function parseOcrOutput(raw: string): OcrResult {
     sessionId: d.session_id,
     ocrVersion: d.manifest?.execution?.ocr_version,
     configuredConcurrency: d.manifest?.execution?.configured_concurrency,
+    providerRateLimitExhausted: failedRequests.length > 0
+      && d.retry_report!.requests.every((request) => ['failed', 'succeeded', 'recovered'].includes(request.outcome))
+      && failedRequests.every((request) => {
+      const last = request.attempts.at(-1);
+      return request.attempts.length > 1 && last?.status_code === 429
+        && last.error_class === 'rate_limited' && last.failure_phase === 'http';
+    }),
     coverage: coverage
       ? {
           selected: coverage.selected?.length ?? 0,

@@ -14,7 +14,7 @@ Every release must preserve these invariants:
 - `/data` and the configured SQLite database survive application restarts.
 - A release is not complete until `/healthz`, `/readyz`, and the logs are checked.
 
-Each OCR review process receives one fresh UUID in both `X-Session-ID` and
+Each Gateway OCR review process receives one fresh UUID in both `X-Session-ID` and
 `x-opencode-session` through OCR's `OCR_LLM_EXTRA_HEADERS`. All requests and
 SDK retries in that review reuse it; separate reviews receive different IDs. Existing extra headers are
 preserved. `X-Session-ID` pins the review to a CLIProxyAPI upstream key; the
@@ -170,6 +170,57 @@ NFS), the binary is shared but each machine has its own process. Update the file
 once, then restart the service on **every** machine. Verify the file hash and
 health endpoint on every host; never assume a shared filesystem restarted a
 running process.
+
+## ChatGPT quota fallback
+
+DeepSeek stays primary. To enable the optional fallback, first sign in using
+OCR's [ChatGPT preview flow](https://github.com/alibaba/open-code-review/blob/v1.13.5/pages/src/content/docs/en/chatgpt-preview.md):
+
+```bash
+ocr auth login --provider chatgpt
+ocr auth status --provider chatgpt
+ocr llm models
+```
+
+Grant ChatGPT plan usage in the browser. If it is disabled, run
+`ocr auth login --provider chatgpt --enable-plan`. Login is interactive and does
+not support device codes. Available models and usage limits depend on the
+selected account; OCR does not automatically switch to API billing.
+
+Keep OCR's `accounts.json` and `host.json` in a service-owned directory outside
+the review workspace. The directory must be private (`0700`); both files must be
+regular service-owned files without group/other permissions (`0600`). On Oracle,
+use `/opt/swear-review/data/chatgpt-auth`. A self-hosted VM needs its own stable
+host ID; follow [OpenAI's VM guide](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
+when transferring a registration. Do not copy the whole local HOME or save tokens
+in YAML, Git, review artifacts, or command arguments.
+
+Add this to the central service configuration after verifying the login:
+
+```yaml
+llm:
+  # Keep the existing DeepSeek url/model/use_anthropic values.
+  chatgpt_fallback:
+    auth_dir: /opt/swear-review/data/chatgpt-auth
+    # model: <account-visible-model>  # omitted: account catalog default
+```
+
+Omitting `chatgpt_fallback` disables it. Each review still starts with DeepSeek.
+Fallback runs once for the same immutable SHAs, with unchanged concurrency and
+the time remaining in the original hard deadline. It requires failed provider
+coverage and a structured OCR retry report where every failed logical request
+exhausted retries on HTTP 429. The gateway already tries its configured routes
+before returning aggregate 429; this can indicate exhausted quota or sustained
+rate limiting. OCR does not expose the provider error body, so these two causes
+cannot be distinguished. Generic provider errors, mixed non-429 failures,
+budget/config/parse errors, cancellation and timeout never trigger fallback.
+
+The final summary and stored run identify the model actually used. Findings from
+a partial primary review are retained and deduplicated against fallback
+findings. An incomplete or skipped fallback cannot turn selected primary files
+into a successful review. The fallback has its own isolated session HOME, with
+only its auth subtree linked to the persistent directory; OCR manages token
+rotation and locking there. Workspace cleanup leaves the auth store intact.
 
 ## OCR upgrades
 

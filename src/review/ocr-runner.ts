@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { lstatSync, realpathSync, statSync } from 'node:fs';
+import { lstatSync, mkdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Logger } from '../util/logger.js';
 
@@ -25,6 +25,7 @@ export interface OcrRunInput {
   /** isolated HOME for the OCR process (sessions, update state) */
   homeDir: string;
   ocrEnv: Record<string, string>;
+  chatgpt?: { auth_dir: string; model?: string };
   signal?: AbortSignal;
   log: Logger;
 }
@@ -33,10 +34,12 @@ export interface OcrRunInput {
  * Runs `ocr review --from <base> --to <head> --concurrency 16 --format json`.
  *
  * OCR implements its own SDK retry loop (LLM client with MaxRetries). Swear
- * Review deliberately adds NO outer retry and NO concurrency fallback to avoid
- * retry amplification.
+ * Review only retries once with opt-in ChatGPT after verified gateway quota
+ * exhaustion. It never changes concurrency or retries other failures.
  */
 export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
+  input.signal?.throwIfAborted();
+  if (input.chatgpt) prepareChatGptHome(input.homeDir, input.repoDir, input.chatgpt.auth_dir);
   const backgroundFile = repositoryBackgroundFile(input.repoDir);
   const args = [
     'review',
@@ -49,6 +52,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     '--repo', input.repoDir,
     ...(input.toolsFile ? ['--tools', input.toolsFile] : []),
     ...(backgroundFile ? ['--background-file', backgroundFile] : []),
+    ...(input.chatgpt ? ['--provider', 'chatgpt', ...(input.chatgpt.model ? ['--model', input.chatgpt.model] : [])] : []),
   ];
 
   const env: NodeJS.ProcessEnv = {
@@ -60,12 +64,16 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     // OCR sessions to the service user's real ~/.opencodereview.
     HOME: input.homeDir,
   };
-  const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
-  if (/(?:^|,)\s*(?:x-opencode-session|x-session-id|x-session-affinity)\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
-    throw new Error('Session headers are managed per review; remove them from OCR_LLM_EXTRA_HEADERS');
+  if (input.chatgpt) {
+    for (const key of ['OCR_LLM_URL', 'OCR_LLM_TOKEN', 'OCR_LLM_MODEL', 'OCR_USE_ANTHROPIC', 'OCR_LLM_PROTOCOL', 'OCR_LLM_AUTH_HEADER', 'OCR_LLM_EXTRA_HEADERS']) delete env[key];
+  } else {
+    const extraHeaders = env.OCR_LLM_EXTRA_HEADERS ?? '';
+    if (/(?:^|,)\s*(?:x-opencode-session|x-session-id|x-session-affinity)\s*=/i.test(extraHeaders.replace(/"[^"]*"/g, ''))) {
+      throw new Error('Session headers are managed per review; remove them from OCR_LLM_EXTRA_HEADERS');
+    }
+    const sessionId = randomUUID();
+    env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${sessionId}`, `X-Session-ID=${sessionId}`].filter(Boolean).join(',');
   }
-  const sessionId = randomUUID();
-  env.OCR_LLM_EXTRA_HEADERS = [extraHeaders, `x-opencode-session=${sessionId}`, `X-Session-ID=${sessionId}`].filter(Boolean).join(',');
 
   let child: ChildProcess;
   try {
@@ -145,6 +153,29 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     'ocr process finished',
   );
   return result;
+}
+
+function prepareChatGptHome(homeDir: string, repoDir: string, authDir: string): void {
+  const directory = realpathSync(authDir);
+  mkdirSync(path.dirname(homeDir), { recursive: true, mode: 0o700 });
+  for (const root of [repoDir, path.dirname(homeDir)]) {
+    const relative = path.relative(realpathSync(root), directory);
+    if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+      throw new Error('ChatGPT auth_dir must be outside the review workspace');
+    }
+  }
+  for (const file of [directory, path.join(directory, 'accounts.json'), path.join(directory, 'host.json')]) {
+    const info = lstatSync(file);
+    if (info.isSymbolicLink() || (file === directory ? !info.isDirectory() : !info.isFile())
+      || (process.platform !== 'win32' && ((info.mode & 0o077) !== 0 || info.uid !== process.getuid?.()))) {
+      throw new Error('ChatGPT auth store must contain private files owned by the service user');
+    }
+  }
+  const configDir = path.join(homeDir, '.opencodereview');
+  mkdirSync(path.join(configDir, 'auth'), { recursive: true, mode: 0o700 });
+  // Share the whole auth store: OCR atomically rotates tokens under its own lock.
+  symlinkSync(directory, path.join(configDir, 'auth', 'chatgpt'), 'dir');
+  writeFileSync(path.join(configDir, 'config.json'), JSON.stringify({ providers: { chatgpt: {} } }), { mode: 0o600 });
 }
 
 function repositoryBackgroundFile(repoDir: string): string | undefined {

@@ -40,6 +40,11 @@ llm:
   url: "https://opencode.ai/zen/go/v1/chat/completions"
   model: "deepseek-v4-flash"
   use_anthropic: false
+  # Optional: retry once with ChatGPT after the primary gateway exhausts 429 retries.
+  # auth_dir contains OCR's accounts.json + host.json; never put tokens in YAML.
+  # chatgpt_fallback:
+  #   auth_dir: "/data/chatgpt-auth"
+  #   model: "<account-visible-model>"  # omitted: use the account catalog default
 
 publication:
   deduplicate: true

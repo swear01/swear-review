@@ -17,6 +17,56 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 describe('runOcr', () => {
+  it('shares only the private ChatGPT auth store across isolated homes and preserves token rotation', async () => {
+    const directory = mkdtempSync(path.join(root, 'chatgpt-'));
+    const authDir = path.join(directory, 'auth');
+    mkdirSync(authDir, { mode: 0o700 });
+    writeFileSync(path.join(authDir, 'accounts.json'), '0', { mode: 0o600 });
+    writeFileSync(path.join(authDir, 'host.json'), 'stable-host', { mode: 0o600 });
+    const binary = path.join(directory, 'auth.mjs');
+    writeFileSync(binary, `#!/usr/bin/env node
+import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
+import path from 'node:path';
+const dir = path.join(process.env.HOME, '.opencodereview');
+const auth = path.join(dir, 'auth', 'chatgpt');
+const account = path.join(auth, 'accounts.json');
+const revision = Number(readFileSync(account, 'utf8')) + 1;
+writeFileSync(account, String(revision));
+console.log(JSON.stringify({ args: process.argv.slice(2), config: JSON.parse(readFileSync(path.join(dir, 'config.json'))), auth: realpathSync(auth), host: readFileSync(path.join(auth, 'host.json'), 'utf8'), revision, token: process.env.OCR_LLM_TOKEN, headers: process.env.OCR_LLM_EXTRA_HEADERS }));
+`, { mode: 0o755 });
+    for (const revision of [1, 2]) {
+      const job = path.join(directory, `job-${revision}`);
+      const repoDir = path.join(job, 'repo');
+      mkdirSync(repoDir, { recursive: true });
+      const result = await runOcr({
+        baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 2,
+        timeoutMinutes: 15, hardTimeoutMinutes: 1, binary, repoDir,
+        homeDir: path.join(job, 'ocr-home'), chatgpt: { auth_dir: authDir, model: 'test-model' },
+        ocrEnv: { OCR_LLM_TOKEN: 'primary-secret', OCR_LLM_EXTRA_HEADERS: 'Private=yes' }, log: createLogger('silent'),
+      });
+      const output = JSON.parse(result.stdout);
+      expect(output).toMatchObject({ auth: realpathSync(authDir), host: 'stable-host', revision, config: { providers: { chatgpt: {} } } });
+      expect(output.token).toBeUndefined();
+      expect(output.headers).toBeUndefined();
+      expect(output.args.slice(-4)).toEqual(['--provider', 'chatgpt', '--model', 'test-model']);
+      rmSync(job, { recursive: true });
+      expect(readFileSync(path.join(authDir, 'accounts.json'), 'utf8')).toBe(String(revision));
+    }
+    chmodSync(path.join(authDir, 'accounts.json'), 0o644);
+    await expect(runOcr({
+      baseSha: 'a', headSha: 'b', concurrency: 1, timeoutMinutes: 1, hardTimeoutMinutes: 1,
+      binary, repoDir: directory, homeDir: path.join(directory, 'job', 'home'), chatgpt: { auth_dir: authDir },
+      ocrEnv: {}, log: createLogger('silent'),
+    })).rejects.toThrow('outside the review workspace');
+    const repoDir = path.join(directory, 'job', 'repo');
+    mkdirSync(repoDir, { recursive: true });
+    await expect(runOcr({
+      baseSha: 'a', headSha: 'b', concurrency: 1, timeoutMinutes: 1, hardTimeoutMinutes: 1,
+      binary, repoDir, homeDir: path.join(directory, 'job', 'home'), chatgpt: { auth_dir: authDir },
+      ocrEnv: {}, log: createLogger('silent'),
+    })).rejects.toThrow('private files owned');
+  });
+
   it('passes repository background to OCR and rejects paths outside the checkout', async () => {
     const repoDir = mkdtempSync(path.join(root, 'background-'));
     const binary = path.join(repoDir, 'args.mjs');
