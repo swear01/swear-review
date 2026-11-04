@@ -90,6 +90,12 @@ jobs:
             grep -q "\"ocr_version\": \"v1.13.5\"" /tmp/ocr-result.json
           '
 
+      - name: Verify CUDA and HIP selection and rules without model calls
+        run: |
+          docker run --rm --network none --entrypoint node \
+            -v "$PWD/tests/helpers/verify-cuda-rules.mjs:/cuda-smoke.mjs:ro" \
+            swear-review:ci /cuda-smoke.mjs /app
+
       - name: Smoke test /healthz and /readyz
         run: |
           set -euo pipefail

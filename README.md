@@ -182,6 +182,21 @@ explicit value after measuring their memory and provider limits.
 The bundled tool file is derived from Alibaba Open Code Review v1.13.2's
 `tools.json`; its Apache 2.0 license is in `config/LICENSE-ocr-tools.txt`.
 
+Swear Review also enables tracked CUDA (`.cu`, `.cuh`) and HIP (`.hip`) files
+with the GPU review rules from upstream [PR #1768](https://github.com/alibaba/open-code-review/pull/1768),
+pinned at `8555d2853adc3b68e723c0ba9cdc26497b8b5ee2` while that change is unmerged.
+The bundled rules and OCR 1.13.5 default exclusions are under Apache 2.0
+(see `config/LICENSE-ocr-tools.txt`). Each job keeps them in its isolated OCR
+HOME; the target repository is not modified. Project includes, excludes and
+matching custom rules keep their precedence. Built-in default path exclusions
+still apply to CUDA/HIP unless a project explicitly includes those paths;
+OCR's `.gitignore`, binary and secret-path protections also remain in effect.
+GPU rules check correctness in the project's build and hardware context;
+they do not execute kernels or replace GPU tests.
+CUDA/HIP paths containing literal braces need a project include matching their
+parent directory; otherwise they fail explicitly because OCR 1.13.5 cannot
+safely escape them in an include pattern.
+
 DeepSeek remains the primary model. Optional `llm.chatgpt_fallback` retries the
 same commit range once after OCR reports exhausted HTTP 429 retries and only
 provider failures. Both attempts share the original hard timeout and fixed

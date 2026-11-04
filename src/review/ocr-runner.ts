@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Logger } from '../util/logger.js';
+import { prepareOcrRules } from './ocr-rules.js';
 
 export interface OcrProcessResult {
   stdout: string;
@@ -41,6 +42,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
   input.signal?.throwIfAborted();
   if (input.chatgpt) prepareChatGptHome(input.homeDir, input.repoDir, input.chatgpt.auth_dir);
   const backgroundFile = repositoryBackgroundFile(input.repoDir);
+  const rulesFile = await prepareOcrRules(input.repoDir, input.homeDir, input.signal);
   const args = [
     'review',
     '--from', input.baseSha,
@@ -50,6 +52,7 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     '--audience', 'agent',
     '--timeout', String(input.timeoutMinutes),
     '--repo', input.repoDir,
+    '--rule', rulesFile,
     ...(input.toolsFile ? ['--tools', input.toolsFile] : []),
     ...(backgroundFile ? ['--background-file', backgroundFile] : []),
     ...(input.chatgpt ? ['--provider', 'chatgpt', ...(input.chatgpt.model ? ['--model', input.chatgpt.model] : [])] : []),
