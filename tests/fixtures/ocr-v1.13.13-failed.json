@@ -1,0 +1,178 @@
+{
+  "status": "failed",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review failed: 0 finding(s); 3 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 0,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "elapsed": "14s"
+  },
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": null,
+  "groups": [
+    {
+      "label": "small change set",
+      "files": [
+        "alpha/main.go",
+        "beta/main.go",
+        "gamma/main.go"
+      ]
+    }
+  ],
+  "session_id": "a315d6fa-91bf-4a99-9f21-49edabc063fe",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "a315d6fa-91bf-4a99-9f21-49edabc063fe",
+    "operation": "review",
+    "terminal_state": "failed",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "e5f3f7fbbea915a716caf6246126bc621f2ad594",
+      "requested_head": "c229dd9ef1c7fa1b23bfde985f360f1a1791dbd6",
+      "resolved_base": "e5f3f7fbbea915a716caf6246126bc621f2ad594",
+      "resolved_head": "c229dd9ef1c7fa1b23bfde985f360f1a1791dbd6",
+      "exact_range": "e5f3f7fbbea915a716caf6246126bc621f2ad594..c229dd9ef1c7fa1b23bfde985f360f1a1791dbd6",
+      "source_artifact_sha256": "a5256d32e70e8775b9bf409e4489abc496e95520aa7a5fccc2d29c9f50261b59"
+    },
+    "execution": {
+      "ocr_version": "v1.13.13",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "e4c3a41f913d55e6d8ff3bb47fc8dbc6a6cab7dbefcb00f5bc5ad14bea0b3385",
+      "runtime_config_sha256": "c45cdc5609446b26e08dfbb2b9e6636aeb794627de34d09abdfd0e1280e9449b"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "e9607b9f2941b1c12f0cdd8701e65071a8863beb6b541918e2b266c77fab39b8"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "a218f625f96d45c98d9bff7184546ac7efe8725b0bb5126287037e5b7abab957"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "eb39dd114a8026ded6c42751c2e289ed8117e1d99e3cec1d09d6c12ad626c8a0"
+        }
+      ],
+      "completed": [],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "e9607b9f2941b1c12f0cdd8701e65071a8863beb6b541918e2b266c77fab39b8",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "a218f625f96d45c98d9bff7184546ac7efe8725b0bb5126287037e5b7abab957",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "eb39dd114a8026ded6c42751c2e289ed8117e1d99e3cec1d09d6c12ad626c8a0",
+          "classification": "provider",
+          "reason": "provider or subtask request failed"
+        }
+      ],
+      "waived": [],
+      "excluded": []
+    },
+    "elapsed_ms": 13561
+  },
+  "retry_report": {
+    "schema_version": "ocr.llm-retry-report/v1",
+    "total_requests": 1,
+    "retried_requests": 1,
+    "total_retries": 5,
+    "recovered_requests": 0,
+    "failed_requests": 1,
+    "cancelled_requests": 0,
+    "requests": [
+      {
+        "logical_request_id": "33cb4aa06a3b4428c3e0dd954bff679fc22b9edd07c0bf2cd6d57f98a006b8b3",
+        "provider": "",
+        "model": "deepseek-flash",
+        "file_path": "alpha/main.go,beta/main.go,gamma/main.go",
+        "task_type": "main_task",
+        "request_no": 1,
+        "outcome": "failed",
+        "attempts": [
+          {
+            "attempt": 1,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "duration_to_headers_ms": 5
+          },
+          {
+            "attempt": 2,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "observed_backoff_ms": 499,
+            "duration_to_headers_ms": 2
+          },
+          {
+            "attempt": 3,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "observed_backoff_ms": 865
+          },
+          {
+            "attempt": 4,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "observed_backoff_ms": 1969,
+            "duration_to_headers_ms": 1
+          },
+          {
+            "attempt": 5,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "observed_backoff_ms": 3072
+          },
+          {
+            "attempt": 6,
+            "outcome": "error",
+            "error_class": "provider",
+            "failure_phase": "http",
+            "status_code": 500,
+            "observed_backoff_ms": 7062,
+            "duration_to_headers_ms": 1
+          }
+        ]
+      }
+    ]
+  }
+}

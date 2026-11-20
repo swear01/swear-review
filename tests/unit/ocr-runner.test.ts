@@ -102,17 +102,17 @@ console.log(JSON.stringify({ args: process.argv.slice(2), config: JSON.parse(rea
     await expect(runOcr(input)).rejects.toThrow('regular file inside');
   });
 
-  it('passes an optional tool definition file to OCR', async () => {
-    const binary = path.join(root, 'args.mjs');
-    writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n', { mode: 0o755 });
-    const toolsFile = path.join(root, 'tools.json');
+  it('returns stdout and the exit code of a non-zero OCR exit so the worker can still parse it', async () => {
+    const binary = path.join(root, 'exit1.mjs');
+    writeFileSync(binary, '#!/usr/bin/env node\nconsole.log(\'{"status":"partial"}\');\nprocess.exit(1);\n', { mode: 0o755 });
     const result = await runOcr({
       baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40), concurrency: 2,
-      timeoutMinutes: 15, hardTimeoutMinutes: 1, binary, toolsFile,
+      timeoutMinutes: 15, hardTimeoutMinutes: 1, binary,
       repoDir: root, homeDir: root, ocrEnv: {}, log: createLogger('silent'),
     });
-    const args = JSON.parse(result.stdout) as string[];
-    expect(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 2)).toEqual(['--tools', toolsFile]);
+    expect(result.exitCode).toBe(1);
+    expect(result.killed).toBe(false);
+    expect(JSON.parse(result.stdout)).toEqual({ status: 'partial' });
   });
 
   it('keeps the isolated HOME even when ocrEnv carries the service HOME', async () => {

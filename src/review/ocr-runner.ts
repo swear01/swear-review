@@ -21,7 +21,6 @@ export interface OcrRunInput {
   timeoutMinutes: number;
   hardTimeoutMinutes: number;
   binary: string;
-  toolsFile?: string;
   repoDir: string;
   /** isolated HOME for the OCR process (sessions, update state) */
   homeDir: string;
@@ -53,7 +52,6 @@ export async function runOcr(input: OcrRunInput): Promise<OcrProcessResult> {
     '--timeout', String(input.timeoutMinutes),
     '--repo', input.repoDir,
     '--rule', rulesFile,
-    ...(input.toolsFile ? ['--tools', input.toolsFile] : []),
     ...(backgroundFile ? ['--background-file', backgroundFile] : []),
     ...(input.chatgpt ? ['--provider', 'chatgpt', ...(input.chatgpt.model ? ['--model', input.chatgpt.model] : [])] : []),
   ];

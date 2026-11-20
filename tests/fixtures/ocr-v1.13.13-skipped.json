@@ -1,0 +1,63 @@
+{
+  "status": "skipped",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review skipped: no items were selected.",
+  "summary": {
+    "files_reviewed": 0,
+    "comments": 0,
+    "total_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "elapsed": "0s"
+  },
+  "tool_calls": {
+    "total": 0,
+    "by_tool": {},
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [],
+  "session_id": "d7685406-7490-4221-b68d-98d48686478d",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "d7685406-7490-4221-b68d-98d48686478d",
+    "operation": "review",
+    "terminal_state": "skipped",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "0a9956ed22dab121923ee1dca55385dd03b6ec71",
+      "requested_head": "0f63e15d52bb0cb6c92097cce663d5a4bba68f11",
+      "resolved_base": "0a9956ed22dab121923ee1dca55385dd03b6ec71",
+      "resolved_head": "0f63e15d52bb0cb6c92097cce663d5a4bba68f11",
+      "exact_range": "0a9956ed22dab121923ee1dca55385dd03b6ec71..0f63e15d52bb0cb6c92097cce663d5a4bba68f11",
+      "source_artifact_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "execution": {
+      "ocr_version": "v1.13.13",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "e4c3a41f913d55e6d8ff3bb47fc8dbc6a6cab7dbefcb00f5bc5ad14bea0b3385",
+      "runtime_config_sha256": "3f18837028a326ba8142c736569b4dfa2160b0d3df43e169c8d853214267a00f"
+    },
+    "coverage": {
+      "selected": [],
+      "completed": [],
+      "reused": [],
+      "failed": [],
+      "waived": [],
+      "excluded": [
+        {
+          "item_id": "5513e08b2a7a2bd1474a6452d9bc1b53c9b16406f75a10e4eaf4d17e219a038c",
+          "path": "README.md",
+          "exclude_reason": "unsupported_ext"
+        }
+      ]
+    },
+    "elapsed_ms": 32
+  }
+}

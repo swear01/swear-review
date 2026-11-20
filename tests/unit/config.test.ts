@@ -7,7 +7,7 @@ import { loadConfigFile, parseConfig, resolveRepoConfig, defaultConfig } from '.
 describe('parseConfig', () => {
   it('applies safe defaults for empty config', () => {
     const c = parseConfig('');
-    expect(c.ocr.version).toBe('1.13.5');
+    expect(c.ocr.version).toBe('1.13.13');
     expect(c.ocr.timeout_minutes).toBe(15);
     expect(c.ocr.concurrency).toBe(16);
     expect(c.llm.model).toBe('deepseek-v4-flash');
@@ -30,20 +30,8 @@ describe('parseConfig', () => {
     expect(() => parseConfig('llm:\n  chatgpt_fallback:\n    auth_dir: relative')).toThrow('absolute path');
   });
 
-  it('validates the OCR tools file at config load', () => {
-    const toolsFile = path.resolve('config/ocr-tools-no-search.json');
-    expect(parseConfig(`ocr:\n  tools_file: ${toolsFile}`).ocr.tools_file).toBe(toolsFile);
-    expect(() => parseConfig('ocr:\n  tools_file: relative.json')).toThrow('absolute path');
-    const temp = mkdtempSync(path.join(tmpdir(), 'swear-review-config-'));
-    try {
-      const configPath = path.join(temp, 'config.yaml');
-      writeFileSync(configPath, 'ocr:\n  tools_file: ' + path.join(temp, 'missing.json'));
-      expect(() => loadConfigFile(configPath)).toThrow('readable file');
-      writeFileSync(configPath, 'ocr:\n  tools_file: ' + temp);
-      expect(() => loadConfigFile(configPath)).toThrow('readable file');
-    } finally {
-      rmSync(temp, { recursive: true, force: true });
-    }
+  it('rejects the removed ocr.tools_file key', () => {
+    expect(() => parseConfig('ocr:\n  tools_file: /app/config/ocr-tools-no-search.json')).toThrow('tools_file was removed');
   });
 
   it('rejects unknown gate modes', () => {

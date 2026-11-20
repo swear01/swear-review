@@ -6,11 +6,11 @@ import { parseOcrOutput, OcrSchemaError } from '../../src/review/ocr-adapter.js'
 
 const fixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0.json');
 const skippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.9.0-skipped.json');
-const latestSkippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.13.5-skipped.json');
+const latestSkippedFixturePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'ocr-v1.13.13-skipped.json');
 
 describe('parseOcrOutput', () => {
-  it('recognizes exhausted 429 retries from a real 1.13.5 capture, excluding mixed failures and cancellations', () => {
-    const raw = readFileSync(path.join(path.dirname(fixturePath), 'ocr-v1.13.5-quota.json'), 'utf8');
+  it('recognizes exhausted 429 retries from a real 1.13.13 capture, excluding mixed failures and cancellations', () => {
+    const raw = readFileSync(path.join(path.dirname(fixturePath), 'ocr-v1.13.13-quota.json'), 'utf8');
     expect(parseOcrOutput(raw).providerRateLimitExhausted).toBe(true);
     const mixed = JSON.parse(raw);
     mixed.retry_report.requests[0].attempts.at(-1).status_code = 500;
@@ -55,6 +55,10 @@ describe('parseOcrOutput', () => {
     ['1.13.5', 'failed', 'failed', 3, 0, 'provider', 0],
     ['1.13.5', 'partial', 'partial', 3, 2, 'budget', 2],
     ['1.13.5', 'cancelled', 'failed', 3, 0, 'cancelled', 0],
+    ['1.13.13', 'complete', 'complete', 3, 3, undefined, 3],
+    ['1.13.13', 'failed', 'failed', 3, 0, 'provider', 0],
+    ['1.13.13', 'partial', 'partial', 3, 2, 'budget', 8],
+    ['1.13.13', 'cancelled', 'failed', 3, 0, 'cancelled', 0],
   ] as const)('parses the captured v%s %s run', (version, name, status, selected, completed, failure, comments) => {
     const raw = readFileSync(path.join(path.dirname(fixturePath), `ocr-v${version}-${name}.json`), 'utf8');
     const result = parseOcrOutput(raw);
@@ -134,10 +138,10 @@ describe('parseOcrOutput', () => {
     expect(result.summary?.filesReviewed).toBe(0);
   });
 
-  it('accepts the real v1.13.5 skipped fixture', () => {
+  it('accepts the real v1.13.13 skipped fixture', () => {
     const result = parseOcrOutput(readFileSync(latestSkippedFixturePath, 'utf8'));
     expect(result.status).toBe('skipped');
-    expect(result.ocrVersion).toBe('v1.13.5');
+    expect(result.ocrVersion).toBe('v1.13.13');
     expect(result.coverage?.selected).toBe(0);
   });
 });
