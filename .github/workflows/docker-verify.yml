@@ -59,14 +59,14 @@ jobs:
           set -euo pipefail
           ov=$(docker run --rm --entrypoint ocr swear-review:ci version)
           echo "ocr: $ov"
-          if echo "$ov" | grep -q '1.13.13'; then
+          if echo "$ov" | grep -qE '(^|[^0-9])1\.13\.13([^0-9]|$)'; then
             echo "PASS: OCR 1.13.13"
           else
             echo "FAIL: OCR version mismatch"
             exit 1
           fi
 
-      - name: Validate bundled OCR tool set
+      - name: Smoke-test OCR skipped path (docs-only diff)
         run: |
           set -euo pipefail
           docker run --rm --entrypoint sh swear-review:ci -ec '

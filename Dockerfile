@@ -21,7 +21,7 @@ RUN apt-get update \
 
 # OCR is a native binary — install the pinned release globally and assert it.
 RUN npm install -g @alibaba-group/open-code-review@1.13.13 --no-audit --no-fund \
-  && ocr version 2>&1 | grep -q '1.13.13' \
+  && ocr version 2>&1 | grep -qE '(^|[^0-9])1\.13\.13([^0-9]|$)' \
   && echo "OCR version OK: $(ocr version 2>&1 | head -1)"
 
 WORKDIR /app
