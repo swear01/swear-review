@@ -6,7 +6,7 @@ import { z } from 'zod';
  * Target repositories never carry any configuration file.
  */
 
-const OCR_VERSION = '1.13.5';
+const OCR_VERSION = '1.13.13';
 
 export const GateModeSchema = z.enum(['off', 'check', 'managed']);
 export const GateStrategySchema = z.enum(['single', 'any']);
@@ -101,10 +101,8 @@ const OcrConfigSchema = z
     concurrency: z.number().int().min(1).default(16),
     /** OCR binary name/path. Defaults to `ocr` on PATH. */
     binary: z.string().default('ocr'),
-    /** Optional OCR tool definitions file. */
-    tools_file: z.string()
-      .refine((value) => path.isAbsolute(value), 'OCR tools_file must be an absolute path')
-      .optional(),
+    /** Removed: OCR 1.13.8+ has no `--tools`. Fail loudly instead of silently ignoring it. */
+    tools_file: z.never({ error: 'ocr.tools_file was removed: OCR 1.13.8+ no longer supports --tools; delete the key' }).optional(),
     /** Per-task timeout in minutes passed to `ocr review --timeout`. */
     timeout_minutes: z.number().int().min(1).default(15),
     /** Overall process kill timeout in minutes (guard against hangs). */

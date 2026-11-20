@@ -48,7 +48,7 @@ checkout → queue → OCR 1.9.x → findings
 | GitHub | `@octokit/app`, `@octokit/webhooks` |
 | HTTP | Fastify |
 | Persistence | SQLite (`node:sqlite`) |
-| Review engine | `@alibaba-group/open-code-review@1.13.5` |
+| Review engine | `@alibaba-group/open-code-review@1.13.13` |
 | Model endpoint | OpenCode Go by default, `deepseek-v4-flash` |
 | Deployment | Docker Compose or a systemd service |
 
@@ -150,13 +150,10 @@ review:
     ready_for_review: true
 
 ocr:
-  version: "1.13.5"
+  version: "1.13.13"
   concurrency: 16       # fixed per deployment; no adaptive fallback
   timeout_minutes: 15
   hard_timeout_minutes: 45
-  # Optional: use the bundled tool set without code_search for repositories
-  # where large search results exhaust the model context.
-  # tools_file: /app/config/ocr-tools-no-search.json
 
 publication:
   deduplicate: true
@@ -179,13 +176,15 @@ gate:
 `ocr.concurrency` is fixed for each process configuration; the service does not
 silently fall back from 16 to 8 or 4. Smaller deployments may choose a lower
 explicit value after measuring their memory and provider limits.
-The bundled tool file is derived from Alibaba Open Code Review v1.13.2's
-`tools.json`; its Apache 2.0 license is in `config/LICENSE-ocr-tools.txt`.
+OCR 1.13.8 removed `ocr review --tools`, so the former no-search tool set
+(`ocr.tools_file`) is gone, and a config that still sets it fails at startup.
+Protection on very large PRs now relies on OCR's own `file_read` result bounds
+and the token budget, not on removing `code_search`.
 
 Swear Review also enables tracked CUDA (`.cu`, `.cuh`) and HIP (`.hip`) files
 with the GPU review rules from upstream [PR #1768](https://github.com/alibaba/open-code-review/pull/1768),
 pinned at `8555d2853adc3b68e723c0ba9cdc26497b8b5ee2` while that change is unmerged.
-The bundled rules and OCR 1.13.5 default exclusions are under Apache 2.0
+The bundled rules and OCR 1.13.13 default exclusions are under Apache 2.0
 (see `config/LICENSE-ocr-tools.txt`). Each job keeps them in its isolated OCR
 HOME; the target repository is not modified. Project includes, excludes and
 matching custom rules keep their precedence. Built-in default path exclusions
@@ -194,7 +193,7 @@ OCR's `.gitignore`, binary and secret-path protections also remain in effect.
 GPU rules check correctness in the project's build and hardware context;
 they do not execute kernels or replace GPU tests.
 CUDA/HIP paths containing literal braces need a project include matching their
-parent directory; otherwise they fail explicitly because OCR 1.13.5 cannot
+parent directory; otherwise they fail explicitly because OCR 1.13.13 cannot
 safely escape them in an include pattern.
 
 DeepSeek remains the primary model. Optional `llm.chatgpt_fallback` retries the
@@ -351,8 +350,11 @@ When upgrading OCR:
 5. Only then change the pinned version in `Dockerfile`, `package.json`, and
    `config.example.yaml`.
 
-The `ocr-v1.13.5-*.json` contract fixtures are sanitized captures from isolated
-complete, provider-failed, token-budget partial, cancelled, and skipped runs.
+The `ocr-v1.13.13-*.json` contract fixtures are sanitized captures from isolated
+complete, provider-failed, token-budget partial, cancelled, skipped, and
+HTTP 429 (quota) runs. OCR exits non-zero for failed, cancelled and quota runs and
+0 for complete, skipped and budget-only partial runs; the worker parses stdout
+regardless of the exit code.
 
 ## Operational endpoints
 

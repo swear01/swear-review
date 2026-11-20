@@ -1,4 +1,4 @@
-import { accessSync, constants, readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import YAML from 'yaml';
 import micromatch from 'micromatch';
 import { z } from 'zod';
@@ -22,16 +22,7 @@ export function loadConfigFile(path: string): AppConfig {
     }
     throw err;
   }
-  const config = parseConfig(raw);
-  if (config.ocr.tools_file) {
-    try {
-      if (!statSync(config.ocr.tools_file).isFile()) throw new Error('not a file');
-      accessSync(config.ocr.tools_file, constants.R_OK);
-    } catch (err) {
-      throw new Error('OCR tools_file must be a readable file: ' + config.ocr.tools_file, { cause: err });
-    }
-  }
-  return config;
+  return parseConfig(raw);
 }
 
 export function parseConfig(raw: string): AppConfig {

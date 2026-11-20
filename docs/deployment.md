@@ -174,7 +174,7 @@ running process.
 ## ChatGPT quota fallback
 
 DeepSeek stays primary. To enable the optional fallback, first sign in using
-OCR's [ChatGPT preview flow](https://github.com/alibaba/open-code-review/blob/v1.13.5/pages/src/content/docs/en/chatgpt-preview.md):
+OCR's [ChatGPT preview flow](https://github.com/alibaba/open-code-review/blob/v1.13.13/pages/src/content/docs/en/chatgpt-preview.md):
 
 ```bash
 ocr auth login --provider chatgpt
@@ -226,6 +226,11 @@ rotation and locking there. Workspace cleanup leaves the auth store intact.
 
 OCR output is a versioned compatibility boundary. Do not upgrade only the global
 binary and leave the application pinned to an older contract.
+
+OCR 1.13.8 removed `ocr review --tools`, so the no-search tool set
+(`ocr.tools_file`) no longer exists and a config that still sets it fails at
+startup. Delete the key when deploying 1.13.8 or later. Large-PR protection now
+relies on OCR's own `file_read` result bounds and the token budget.
 
 1. Install the candidate OCR release in an isolated environment.
 2. Capture JSON for at least `complete`, `failed`, `partial`, `cancelled`, and

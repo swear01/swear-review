@@ -4,7 +4,7 @@ SPDX-License-Identifier: Apache-2.0. See LICENSE-ocr-tools.txt. Upstream rule te
 https://github.com/alibaba/open-code-review/blob/8555d2853adc3b68e723c0ba9cdc26497b8b5ee2/internal/config/rules/rule_docs/cuda_hip.md -->
 
 <!-- Companion ocr-default-excludes.json is copied unchanged from alibaba/open-code-review
-v1.13.5 internal/config/allowlist/default_exclude_patterns.json, under Apache-2.0. -->
+v1.13.13 internal/config/allowlist/default_exclude_patterns.json, under Apache-2.0. -->
 
 #### CUDA and HIP Kernel Review Principles
 > Favor precision over recall: report only issues that produce wrong results, read or write memory out of bounds, hide a failed launch, or hang the device — anything else is noise in a review of GPU code. CUDA and HIP are one programming model with two spellings of the same API, so judge each finding against the header the file actually includes (`cuda*` versus `hip*`) rather than translating one into the other, and read the target architecture before applying anything version-specific: the bare shuffle and ballot intrinsics were deprecated in CUDA 9.0 and are no longer available from compute capability 7.x on, where `__shfl_sync()` and its siblings are required, `atomicAdd()` on `double` is not available on devices with compute capability lower than 6.0, and a device-side launch — a `__global__` call from device code, or recursion in device code — is only supported by devices of compute capability 3.5 and higher and needs relocatable device code (`-rdc=true`, linked against the CUDA device runtime). Do not report naming, `<<<...>>>` spacing, or host/device code layout preferences.

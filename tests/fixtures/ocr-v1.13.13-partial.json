@@ -1,0 +1,216 @@
+{
+  "status": "partial",
+  "llm": {
+    "model": "deepseek-flash"
+  },
+  "message": "Review partially complete: 8 finding(s); 1 of 3 selected item(s) failed.",
+  "summary": {
+    "files_reviewed": 3,
+    "comments": 8,
+    "total_tokens": 143792,
+    "input_tokens": 133810,
+    "output_tokens": 9982,
+    "cache_read_tokens": 74752,
+    "elapsed": "1m16s",
+    "budget_exceeded": true
+  },
+  "tool_calls": {
+    "total": 10,
+    "by_tool": {
+      "code_comment": 2,
+      "code_search": 4,
+      "file_read": 4
+    },
+    "failure": 0,
+    "failure_by_tool": {},
+    "failure_details": []
+  },
+  "comments": [
+    {
+      "path": "alpha/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 10,
+      "end_line": 10,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "critical"
+    },
+    {
+      "path": "alpha/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 11,
+      "end_line": 11,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "alpha/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "existing_code": "return value / divisor",
+      "start_line": 8,
+      "end_line": 8,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "medium"
+    },
+    {
+      "path": "alpha/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "existing_code": "return value / divisor",
+      "start_line": 597,
+      "end_line": 597,
+      "thinking": "Sanitized reasoning.",
+      "category": "maintainability",
+      "severity": "medium"
+    },
+    {
+      "path": "beta/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 10,
+      "end_line": 11,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "beta/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 11,
+      "end_line": 11,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "beta/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "suggestion_code": "return checked(value, divisor)",
+      "existing_code": "return value / divisor",
+      "start_line": 8,
+      "end_line": 9,
+      "thinking": "Sanitized reasoning.",
+      "category": "bug",
+      "severity": "high"
+    },
+    {
+      "path": "beta/main.go",
+      "content": "Sanitized finding from OCR v1.13.13.",
+      "existing_code": "return value / divisor",
+      "start_line": 17,
+      "end_line": 18,
+      "thinking": "Sanitized reasoning.",
+      "category": "maintainability",
+      "severity": "medium"
+    }
+  ],
+  "groups": [
+    {
+      "label": "alpha/main.go",
+      "files": [
+        "alpha/main.go"
+      ]
+    },
+    {
+      "label": "beta/main.go",
+      "files": [
+        "beta/main.go"
+      ]
+    },
+    {
+      "label": "gamma/main.go",
+      "files": [
+        "gamma/main.go"
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "file": "gamma/main.go",
+      "message": "stopped dispatch: used 102222 tokens + group estimate 58228 = projected 160450 exceeds budget 120000",
+      "type": "token_budget_reached"
+    },
+    {
+      "file": "beta/main.go",
+      "message": "reached the aggregate token budget before finishing; the grace round did not complete the task",
+      "type": "review_limit_reached"
+    }
+  ],
+  "session_id": "854ac759-11de-4625-8017-a1cb47834d1f",
+  "manifest": {
+    "schema_version": "ocr.run-manifest/v1",
+    "run_id": "854ac759-11de-4625-8017-a1cb47834d1f",
+    "operation": "review",
+    "terminal_state": "partial",
+    "repository": {},
+    "input": {
+      "mode": "range",
+      "requested_from": "0a9956ed22dab121923ee1dca55385dd03b6ec71",
+      "requested_head": "573e5849e213917e7b48456d0bfac2eb49930759",
+      "resolved_base": "0a9956ed22dab121923ee1dca55385dd03b6ec71",
+      "resolved_head": "573e5849e213917e7b48456d0bfac2eb49930759",
+      "exact_range": "0a9956ed22dab121923ee1dca55385dd03b6ec71..573e5849e213917e7b48456d0bfac2eb49930759",
+      "source_artifact_sha256": "dc89e7588f4bec9210196a244180b9f3ce2bb53f417f042dd6dfd6a731a45499"
+    },
+    "execution": {
+      "ocr_version": "v1.13.13",
+      "model": "deepseek-flash",
+      "configured_concurrency": 1,
+      "max_tool_request_times": 100,
+      "rule_config_sha256": "e4c3a41f913d55e6d8ff3bb47fc8dbc6a6cab7dbefcb00f5bc5ad14bea0b3385",
+      "runtime_config_sha256": "4f0cacf12aa59cc1404831d5db3511d3ef1d17014bee590bbdd775bf4cfba773"
+    },
+    "coverage": {
+      "selected": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "5a10c24c250ccaa967492ea0d4adef78484936edbfa2d2c7ee4330be99bdb4a9"
+        },
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "499c894c8ab1b4d6bc2f2041ef49b026b4b0713a740c33d21401efe4652fe111"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "e15992e0d52e30d2f1260da9146067a1b8ce46cf5704ec88db84ee4bd6539f07"
+        }
+      ],
+      "completed": [
+        {
+          "item_id": "b6336d566cb2d055b90d5149a50d3a74e8dcd41d16bc62fc019d90ec26fbe7b8",
+          "path": "beta/main.go",
+          "fingerprint": "499c894c8ab1b4d6bc2f2041ef49b026b4b0713a740c33d21401efe4652fe111"
+        },
+        {
+          "item_id": "f32631db859b32cfdd535487fd0e5f72b08fd6fe956b65e3da5dd93ef9895c56",
+          "path": "alpha/main.go",
+          "fingerprint": "e15992e0d52e30d2f1260da9146067a1b8ce46cf5704ec88db84ee4bd6539f07"
+        }
+      ],
+      "reused": [],
+      "failed": [
+        {
+          "item_id": "19f86cdaedbf42e2de58ea795511117dff2ee61ce3d4ad00a4b303ef73852b68",
+          "path": "gamma/main.go",
+          "fingerprint": "5a10c24c250ccaa967492ea0d4adef78484936edbfa2d2c7ee4330be99bdb4a9",
+          "classification": "budget",
+          "reason": "aggregate token budget reached before dispatch completed"
+        }
+      ],
+      "waived": [],
+      "excluded": []
+    },
+    "elapsed_ms": 75881
+  }
+}
